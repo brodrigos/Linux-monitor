@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
       disksContainer.innerHTML = data.disks.map(disk => {
         const usePct = disk.use || Math.round((disk.used / disk.size) * 100);
         return `
-          <div class="card">
+          <div class="card" style="cursor: pointer; transition: transform 0.2s;" onclick="openDiskModal('${disk.mount}')" title="Clique para analisar os diretórios que ocupam mais espaço">
             <div class="card-header">
               <h2>💾 ${disk.mount}</h2>
               <span class="badge">${disk.fs} (${disk.type})</span>
@@ -102,6 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
               <span>Usado: ${formatBytes(disk.used)}</span>
               <span>Disponível: ${formatBytes(disk.available)}</span>
               <span>Total: ${formatBytes(disk.size)}</span>
+            </div>
+            <div style="margin-top: 0.75rem; text-align: right; font-size: 0.8rem; color: var(--accent-cyan);">
+              🔍 Clique para detalhar diretórios →
             </div>
           </div>
         `;
@@ -299,4 +302,84 @@ document.addEventListener('DOMContentLoaded', () => {
       loadProcesses();
     }
   }, 5000);
+
+  // Disk Scanner Modal Logic
+  let currentDiskPath = '/';
+
+  window.openDiskModal = async function(mountPoint) {
+    currentDiskPath = mountPoint || '/';
+    document.getElementById('disk-modal').style.display = 'flex';
+    await loadDiskPath(currentDiskPath);
+  };
+
+  window.closeDiskModal = function() {
+    document.getElementById('disk-modal').style.display = 'none';
+  };
+
+  window.loadDiskPath = async function(dirPath) {
+    currentDiskPath = dirPath;
+    document.getElementById('disk-modal-title').textContent = `📂 Análise de Armazenamento: ${dirPath}`;
+    const tbody = document.getElementById('disk-tbody');
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Analisando diretórios em ${dirPath}... (aguarde alguns segundos)</td></tr>`;
+
+    try {
+      const res = await fetch(`/api/dir-scan?path=${encodeURIComponent(dirPath)}`);
+      const data = await res.json();
+      if (data.success) {
+        renderDiskItems(data.items, data.parent, data.path);
+      } else {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--accent-red);">Erro: ${data.error || 'Não foi possível ler o diretório'}</td></tr>`;
+      }
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--accent-red);">Erro na requisição: ${err.message}</td></tr>`;
+    }
+  };
+
+  window.navigateDiskParent = function() {
+    const parts = currentDiskPath.split('/').filter(Boolean);
+    if (parts.length === 0) {
+      loadDiskPath('/');
+    } else {
+      parts.pop();
+      const parent = '/' + parts.join('/');
+      loadDiskPath(parent || '/');
+    }
+  };
+
+  function renderDiskItems(items, parent, currentPath) {
+    const tbody = document.getElementById('disk-tbody');
+    const breadcrumb = document.getElementById('disk-breadcrumb');
+
+    const parts = currentPath.split('/').filter(Boolean);
+    let buildPath = '';
+    let breadcrumbHtml = `<span class="breadcrumb-item" onclick="loadDiskPath('/')">📁 /</span>`;
+    parts.forEach(part => {
+      buildPath += '/' + part;
+      const pCopy = buildPath;
+      breadcrumbHtml += `<span class="breadcrumb-separator">/</span><span class="breadcrumb-item" onclick="loadDiskPath('${pCopy}')">${part}</span>`;
+    });
+    breadcrumb.innerHTML = breadcrumbHtml;
+
+    if (!items || items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Nenhum item encontrado ou diretório vazio.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = items.map(item => {
+      const sizeStr = formatBytes(item.sizeBytes);
+      const icon = item.isDir ? '📁' : '📄';
+      const actionBtn = item.isDir 
+        ? `<button class="btn" onclick="loadDiskPath('${item.path}')">Abrir</button>` 
+        : `<span style="color: var(--text-muted); font-size: 0.8rem;">Arquivo</span>`;
+
+      return `
+        <tr>
+          <td><span style="margin-right: 0.5rem;">${icon}</span><strong>${item.name}</strong></td>
+          <td style="color: var(--text-muted); font-size: 0.8rem; word-break: break-all;">${item.path}</td>
+          <td><strong>${sizeStr}</strong></td>
+          <td>${actionBtn}</td>
+        </tr>
+      `;
+    }).join('');
+  }
 });

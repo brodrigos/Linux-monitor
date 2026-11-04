@@ -96,6 +96,55 @@ app.get('/api/status', async (req, res) => {
   res.json(metrics);
 });
 
+// API: Directory Scan (Disk usage breakdown for folders)
+app.get('/api/dir-scan', async (req, res) => {
+  try {
+    let reqPath = req.query.path || '/';
+    let targetPath = path.normalize(reqPath).trim();
+    if (!targetPath.startsWith('/')) targetPath = '/' + targetPath;
+
+    const parentPath = targetPath === '/' ? null : path.dirname(targetPath);
+
+    const { stdout } = await execPromise(`du -sk "${targetPath}"/* "${targetPath}"/.* 2>/dev/null | sort -nr | head -n 60 || true`);
+
+    const lines = stdout.trim().split('\n').filter(Boolean);
+    const items = [];
+
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      const sizeKB = parseInt(parts[0], 10);
+      const itemPath = parts.slice(1).join(' ');
+
+      if (!itemPath || itemPath.endsWith('/.') || itemPath.endsWith('/..')) continue;
+
+      const itemName = path.basename(itemPath);
+      let isDir = false;
+      try {
+        const stats = await fs.promises.stat(itemPath);
+        isDir = stats.isDirectory();
+      } catch (e) {
+        // ignore errors on individual files/links
+      }
+
+      items.push({
+        name: itemName,
+        path: itemPath,
+        sizeBytes: isNaN(sizeKB) ? 0 : sizeKB * 1024,
+        isDir
+      });
+    }
+
+    res.json({
+      success: true,
+      path: targetPath,
+      parent: parentPath,
+      items
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // SSE Stream for live metrics
 app.get('/api/stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');

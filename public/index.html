@@ -163,6 +163,39 @@
     </div>
   </main>
 
+  <!-- Storage / Disk Scanner Modal -->
+  <div id="disk-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="disk-modal-title">📂 Análise de Armazenamento</h2>
+        <button class="btn danger" onclick="closeDiskModal()">✕ Fechar</button>
+      </div>
+      <div class="modal-body">
+        <div class="breadcrumb-bar" id="disk-breadcrumb">
+          <!-- Breadcrumb items -->
+        </div>
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+          <button class="btn" id="disk-back-btn" onclick="navigateDiskParent()">⬅️ Voltar Pasta Acima</button>
+        </div>
+        <div class="table-container" style="max-height: 450px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo / Nome</th>
+                <th>Caminho</th>
+                <th>Tamanho</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody id="disk-tbody">
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Carregando diretórios...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
