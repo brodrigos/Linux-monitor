@@ -128,6 +128,30 @@ document.addEventListener('DOMContentLoaded', () => {
   // Services & Processes logic
   let allServices = [];
   let allProcesses = [];
+  let serviceSortCol = 'name';
+  let serviceSortAsc = true;
+  let processSortCol = 'cpu';
+  let processSortAsc = false;
+
+  window.sortServices = function(col) {
+    if (serviceSortCol === col) {
+      serviceSortAsc = !serviceSortAsc;
+    } else {
+      serviceSortCol = col;
+      serviceSortAsc = true;
+    }
+    renderServices(allServices);
+  };
+
+  window.sortProcesses = function(col) {
+    if (processSortCol === col) {
+      processSortAsc = !processSortAsc;
+    } else {
+      processSortCol = col;
+      processSortAsc = (col === 'name' || col === 'pid' || col === 'user');
+    }
+    renderProcesses(allProcesses);
+  };
 
   window.loadServices = async function() {
     try {
@@ -161,6 +185,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const filtered = services.filter(s => s.name.toLowerCase().includes(search) || s.description.toLowerCase().includes(search));
 
+    filtered.sort((a, b) => {
+      let valA = a[serviceSortCol];
+      let valB = b[serviceSortCol];
+      if (typeof valA === 'string') {
+        valA = (valA || '').toLowerCase();
+        valB = (valB || '').toLowerCase();
+        return serviceSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return serviceSortAsc ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0);
+    });
+
     tbody.innerHTML = filtered.map(s => {
       const memMB = s.memory ? (s.memory / (1024 * 1024)).toFixed(2) : '0.00';
       return `
@@ -184,6 +219,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const search = document.getElementById('processes-search').value.toLowerCase();
 
     const filtered = processes.filter(p => p.name.toLowerCase().includes(search) || String(p.pid).includes(search));
+
+    filtered.sort((a, b) => {
+      let valA = a[processSortCol];
+      let valB = b[processSortCol];
+      if (typeof valA === 'string') {
+        valA = (valA || '').toLowerCase();
+        valB = (valB || '').toLowerCase();
+        return processSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return processSortAsc ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0);
+    });
 
     tbody.innerHTML = filtered.slice(0, 100).map(p => `
       <tr>

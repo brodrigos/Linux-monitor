@@ -116,11 +116,11 @@
             <table>
               <thead>
                 <tr>
-                  <th>Serviço</th>
+                  <th style="cursor: pointer;" onclick="sortServices('name')">Serviço ↕</th>
                   <th>Descrição</th>
-                  <th>Status</th>
+                  <th style="cursor: pointer;" onclick="sortServices('active')">Status ↕</th>
                   <th>Substate</th>
-                  <th>Memória RAM</th>
+                  <th style="cursor: pointer;" onclick="sortServices('memory')">Memória RAM ↕</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -144,11 +144,11 @@
             <table>
               <thead>
                 <tr>
-                  <th>PID</th>
+                  <th style="cursor: pointer;" onclick="sortProcesses('pid')">PID ↕</th>
                   <th>Usuário</th>
-                  <th>Nome</th>
-                  <th>% CPU</th>
-                  <th>% Mem (RSS)</th>
+                  <th style="cursor: pointer;" onclick="sortProcesses('name')">Nome ↕</th>
+                  <th style="cursor: pointer;" onclick="sortProcesses('cpu')">% CPU ↕</th>
+                  <th style="cursor: pointer;" onclick="sortProcesses('mem')">% Mem (RSS) ↕</th>
                   <th>Estado</th>
                   <th>Ações</th>
                 </tr>
