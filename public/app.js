@@ -382,4 +382,28 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }).join('');
   }
+
+  window.clearRamCache = async function() {
+    if (!confirm('Deseja limpar o cache do sistema (PageCache, dentries e inodes) para liberar memória RAM sem afetar os aplicativos em execução?')) return;
+    try {
+      const res = await fetch('/api/memory/clear-cache', {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        if (data.mem) {
+          const mem = data.mem;
+          document.getElementById('mem-usage-val').textContent = `${mem.usagePercent}%`;
+          document.getElementById('mem-bar').style.width = `${mem.usagePercent}%`;
+          document.getElementById('mem-used').textContent = formatBytes(mem.used);
+          document.getElementById('mem-avail').textContent = formatBytes(mem.available);
+        }
+      } else {
+        alert('Erro: ' + (data.error || 'Falha ao limpar cache'));
+      }
+    } catch (err) {
+      alert('Erro na requisição: ' + err.message);
+    }
+  };
 });

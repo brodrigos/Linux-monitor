@@ -304,6 +304,32 @@ app.post('/api/process/action', async (req, res) => {
   }
 });
 
+// API: Clear RAM Cache (Drop pagecache, dentries and inodes safely)
+app.post('/api/memory/clear-cache', async (req, res) => {
+  try {
+    // Sync filesystem buffers to disk first
+    await execPromise('sync');
+    // Drop pagecache, dentries and inodes (drop_caches = 3)
+    await execPromise('sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"');
+    
+    // Get updated memory status
+    const mem = await si.mem();
+    res.json({
+      success: true,
+      message: 'Cache de RAM liberado com sucesso!',
+      mem: {
+        total: mem.total,
+        free: mem.free,
+        used: mem.used,
+        available: mem.available,
+        usagePercent: Math.round((mem.used / mem.total) * 1000) / 10
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Falha ao liberar cache de RAM: ' + error.message });
+  }
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Linux-monitor rodando na porta ${PORT}`);
 });
