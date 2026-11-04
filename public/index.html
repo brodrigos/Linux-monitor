@@ -172,26 +172,54 @@
         <button class="btn danger" onclick="closeDiskModal()">✕ Fechar</button>
       </div>
       <div class="modal-body">
-        <div class="breadcrumb-bar" id="disk-breadcrumb">
-          <!-- Breadcrumb items -->
-        </div>
-        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="filter-btn active" id="btn-view-explorer" onclick="switchDiskView('explorer')">📁 Explorador de Pastas</button>
+            <button class="filter-btn" id="btn-view-suggestions" onclick="switchDiskView('suggestions')">💡 Sugestões de Limpeza Segura</button>
+          </div>
           <button class="btn" id="disk-back-btn" onclick="navigateDiskParent()">⬅️ Voltar Pasta Acima</button>
         </div>
-        <div class="table-container" style="max-height: 450px;">
-          <table>
-            <thead>
-              <tr>
-                <th>Tipo / Nome</th>
-                <th>Caminho</th>
-                <th>Tamanho</th>
-                <th>Ação</th>
-              </tr>
-            </thead>
-            <tbody id="disk-tbody">
-              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Carregando diretórios...</td></tr>
-            </tbody>
-          </table>
+
+        <div id="disk-view-explorer">
+          <div class="breadcrumb-bar" id="disk-breadcrumb">
+            <!-- Breadcrumb items -->
+          </div>
+          <div class="table-container" style="max-height: 400px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tipo / Nome</th>
+                  <th>Caminho</th>
+                  <th>Tamanho</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody id="disk-tbody">
+                <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Carregando diretórios...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="disk-view-suggestions" style="display: none;">
+          <div style="margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-muted);">
+            Itens seguros para limpeza que liberam espaço em disco sem afetar nenhum aplicativo, serviço ou configuração instalada:
+          </div>
+          <div class="table-container" style="max-height: 400px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Item / Categoria</th>
+                  <th>Descrição</th>
+                  <th>Espaço Recuperável</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody id="suggestions-tbody">
+                <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Carregando sugestões...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

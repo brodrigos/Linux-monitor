@@ -406,4 +406,68 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Erro na requisição: ' + err.message);
     }
   };
+
+  window.switchDiskView = function(view) {
+    const btnExp = document.getElementById('btn-view-explorer');
+    const btnSugg = document.getElementById('btn-view-suggestions');
+    const viewExp = document.getElementById('disk-view-explorer');
+    const viewSugg = document.getElementById('disk-view-suggestions');
+    const backBtn = document.getElementById('disk-back-btn');
+
+    if (view === 'explorer') {
+      btnExp.classList.add('active');
+      btnSugg.classList.remove('active');
+      viewExp.style.display = 'block';
+      viewSugg.style.display = 'none';
+      if (backBtn) backBtn.style.display = 'inline-block';
+    } else {
+      btnSugg.classList.add('active');
+      btnExp.classList.remove('active');
+      viewSugg.style.display = 'block';
+      viewExp.style.display = 'none';
+      if (backBtn) backBtn.style.display = 'none';
+      loadDiskSuggestions();
+    }
+  };
+
+  window.loadDiskSuggestions = async function() {
+    const tbody = document.getElementById('suggestions-tbody');
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Analisando itens seguros para limpeza...</td></tr>`;
+    try {
+      const res = await fetch('/api/disk-suggestions');
+      const data = await res.json();
+      if (data.success && data.suggestions) {
+        tbody.innerHTML = data.suggestions.map(s => `
+          <tr>
+            <td><strong>${s.title}</strong></td>
+            <td style="color: var(--text-muted); font-size: 0.85rem;">${s.description}</td>
+            <td><strong style="color: var(--accent-cyan);">${formatBytes(s.sizeBytes)}</strong></td>
+            <td>
+              <button class="btn" style="background: var(--accent-green);" onclick="executeDiskCleanup('${s.id}')">Limpar</button>
+            </td>
+          </tr>
+        `).join('');
+      } else {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--accent-red);">Erro ao carregar sugestões</td></tr>`;
+      }
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--accent-red);">Erro: ${err.message}</td></tr>`;
+    }
+  };
+
+  window.executeDiskCleanup = async function(target) {
+    if (!confirm(`Deseja realmente executar a limpeza segura (${target})? Nenhum aplicativo instalado será afetado.`)) return;
+    try {
+      const res = await fetch('/api/disk-cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target })
+      });
+      const data = await res.json();
+      alert(data.message || 'Limpeza concluída.');
+      loadDiskSuggestions();
+    } catch (err) {
+      alert('Erro na limpeza: ' + err.message);
+    }
+  };
 });

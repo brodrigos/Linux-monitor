@@ -330,6 +330,105 @@ app.post('/api/memory/clear-cache', async (req, res) => {
   }
 });
 
+// API: Disk Cleanup Suggestions
+app.get('/api/disk-suggestions', async (req, res) => {
+  try {
+    let journalSize = 0, aptSize = 0, tmpSize = 0, snapCount = 0;
+    try {
+      const { stdout } = await execPromise('du -sb /var/log/journal /var/cache/apt/archives /tmp 2>/dev/null || true');
+      const lines = stdout.trim().split('\n').filter(Boolean);
+      lines.forEach(line => {
+        const parts = line.split('\t');
+        const bytes = parseInt(parts[0], 10) || 0;
+        const p = parts[1] || '';
+        if (p.includes('/var/log/journal')) journalSize = bytes;
+        if (p.includes('/var/cache/apt/archives')) aptSize = bytes;
+        if (p.includes('/tmp')) tmpSize = bytes;
+      });
+    } catch (e) {}
+
+    try {
+      const { stdout } = await execPromise("snap list --all | grep disabled | wc -l || echo 0");
+      snapCount = parseInt(stdout.trim(), 10) || 0;
+    } catch (e) {}
+
+    const suggestions = [
+      {
+        id: 'journal',
+        title: 'Logs Antigos do Systemd Journal',
+        description: 'Logs acumulados do sistema. Seguro limpar mantendo os últimos 7 dias.',
+        sizeBytes: journalSize,
+        action: 'journalctl --vacuum-time=7d'
+      },
+      {
+        id: 'snaps',
+        title: `Versões Antigas de Snaps Desativadas (${snapCount} revisões)`,
+        description: 'Versões antigas de pacotes Snap que continuam ocupando espaço após atualizações.',
+        sizeBytes: snapCount * 50 * 1024 * 1024,
+        action: 'snap-clean'
+      },
+      {
+        id: 'apt',
+        title: 'Cache de Instalação APT',
+        description: 'Pacotes .deb baixados durante instalações e atualizações anteriores.',
+        sizeBytes: aptSize,
+        action: 'apt-get clean'
+      },
+      {
+        id: 'tmp',
+        title: 'Arquivos Temporários (/tmp)',
+        description: 'Arquivos temporários órfãos que não estão sendo usados por nenhum processo ativo.',
+        sizeBytes: tmpSize,
+        action: 'rm -rf /tmp/*'
+      }
+    ];
+
+    res.json({ success: true, suggestions });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: Execute Disk Cleanup
+app.post('/api/disk-cleanup', async (req, res) => {
+  const { target } = req.body;
+  try {
+    let messages = [];
+    if (target === 'journal' || target === 'all') {
+      await execPromise('sudo journalctl --vacuum-time=7d');
+      messages.push('Journal vacuumed (mantido últimos 7 dias)');
+    }
+    if (target === 'apt' || target === 'all') {
+      await execPromise('sudo apt-get clean');
+      messages.push('Cache APT limpo');
+    }
+    if (target === 'tmp' || target === 'all') {
+      await execPromise('sudo rm -rf /tmp/* 2>/dev/null || true');
+      messages.push('Pasta /tmp limpa');
+    }
+    if (target === 'snaps' || target === 'all') {
+      try {
+        const { stdout } = await execPromise("snap list --all | awk '/disabled/{print $1, $3}'");
+        const lines = stdout.trim().split('\n').filter(Boolean);
+        for (const line of lines) {
+          const [name, rev] = line.trim().split(/\s+/);
+          if (name && rev) {
+            await execPromise(`sudo snap remove "${name}" --revision="${rev}"`).catch(() => {});
+          }
+        }
+        messages.push('Revisões antigas de Snap removidas com sucesso');
+      } catch (e) {}
+    }
+
+    res.json({
+      success: true,
+      message: 'Limpeza executada com sucesso! ' + messages.join(' | ')
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erro ao executar limpeza: ' + error.message });
+  }
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Linux-monitor rodando na porta ${PORT}`);
 });
