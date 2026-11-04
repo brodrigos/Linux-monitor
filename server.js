@@ -6,6 +6,7 @@ const si = require('systeminformation');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
