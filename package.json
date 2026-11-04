@@ -1,0 +1,28 @@
+{
+  "name": "linux-monitor",
+  "version": "1.0.0",
+  "description": "Painel de monitoramento de hardware, recursos e serviços para Linux (cross-distro)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "linux",
+    "monitor",
+    "hardware",
+    "cpu",
+    "ram",
+    "disk",
+    "services",
+    "processes",
+    "systemd"
+  ],
+  "author": "Brodrigos",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "systeminformation": "^5.22.11"
+  }
+}

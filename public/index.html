@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linux-monitor - Painel de Recursos do Sistema</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="logo-area">
+      <div class="logo-icon">🐧</div>
+      <div class="logo-title">
+        <h1>Linux-monitor</h1>
+        <span>Painel de Hardware & Serviços (Cross-Distro)</span>
+      </div>
+    </div>
+    <div class="server-badges">
+      <div class="badge">
+        <span class="dot"></span>
+        <span id="hostname-val">Conectando...</span>
+      </div>
+      <div class="badge" id="os-val">OS: Carregando...</div>
+      <div class="badge" id="uptime-val">Uptime: --</div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="hardware-tab">📊 Visão Geral do Hardware</button>
+    <button class="tab-btn" data-tab="services-tab">⚙️ Serviços & Processos</button>
+  </nav>
+
+  <main>
+    <!-- TAB 1: HARDWARE OVERVIEW -->
+    <div id="hardware-tab" class="tab-content active">
+      <div class="grid-cols-2">
+        <!-- CPU Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2>🖥️ Processador (CPU)</h2>
+            <span class="badge" id="cpu-temp">Temp: --°C</span>
+          </div>
+          <div class="metric-value" id="cpu-load-val">0%</div>
+          <div class="metric-sub" id="cpu-brand">Carregando CPU...</div>
+          <div class="progress-bar-container">
+            <div class="progress-bar cyan" id="cpu-load-bar" style="width: 0%"></div>
+          </div>
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="label">Núcleos / Threads</div>
+              <div class="val" id="cpu-cores">--</div>
+            </div>
+            <div class="info-item">
+              <div class="label">Frequência</div>
+              <div class="val" id="cpu-speed">-- GHz</div>
+            </div>
+          </div>
+          <div style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted);">Uso por Núcleo:</div>
+          <div class="core-bars" id="core-bars">
+            <!-- Dynamic core bars -->
+          </div>
+        </div>
+
+        <!-- RAM Memory Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2>🧠 Memória RAM & Swap</h2>
+            <span class="badge">DDR / Física</span>
+          </div>
+          <div class="metric-value" id="mem-usage-val">0%</div>
+          <div class="metric-sub"><span id="mem-used">--</span> usado de <span id="mem-total">--</span></div>
+          <div class="progress-bar-container">
+            <div class="progress-bar blue" id="mem-bar" style="width: 0%"></div>
+          </div>
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="label">Disponível / Livre</div>
+              <div class="val" id="mem-avail">--</div>
+            </div>
+            <div class="info-item">
+              <div class="label">Swap Usado</div>
+              <div class="val" id="swap-usage">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Disks Grid -->
+      <div style="margin-bottom: 1rem;">
+        <h2 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 1rem; color: var(--accent-cyan);">💾 Discos & Armazenamento Instalados</h2>
+      </div>
+      <div class="grid-cols-3" id="disks-container">
+        <!-- Dynamic disk cards -->
+      </div>
+    </div>
+
+    <!-- TAB 2: SERVICES & PROCESSES -->
+    <div id="services-tab" class="tab-content">
+      <div class="grid-cols-2" style="grid-template-columns: 1fr;">
+        <!-- Services Section -->
+        <div class="card">
+          <div class="card-header">
+            <h2>⚙️ Serviços do Sistema (Systemd / Services)</h2>
+            <button class="btn" onclick="loadServices()">🔄 Atualizar Serviços</button>
+          </div>
+          <div class="controls-bar">
+            <input type="text" id="services-search" class="search-input" placeholder="Buscar serviço...">
+            <div class="filter-buttons">
+              <button class="filter-btn active" onclick="filterServicesByStatus('all')">Todos</button>
+              <button class="filter-btn" onclick="filterServicesByStatus('active')">Rodando</button>
+              <button class="filter-btn" onclick="filterServicesByStatus('inactive')">Parados</button>
+              <button class="filter-btn" onclick="filterServicesByStatus('failed')">Com Falha</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Serviço</th>
+                  <th>Descrição</th>
+                  <th>Status</th>
+                  <th>Substate</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="services-tbody">
+                <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Carregando serviços...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Processes Section -->
+        <div class="card" style="margin-top: 1.5rem;">
+          <div class="card-header">
+            <h2>⚡ Processos em Execução (Top Recursos)</h2>
+            <button class="btn" onclick="loadProcesses()">🔄 Atualizar Processos</button>
+          </div>
+          <div class="controls-bar">
+            <input type="text" id="processes-search" class="search-input" placeholder="Buscar processo por nome ou PID...">
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>PID</th>
+                  <th>Usuário</th>
+                  <th>Nome</th>
+                  <th>% CPU</th>
+                  <th>% Mem (RSS)</th>
+                  <th>Estado</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="processes-tbody">
+                <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Carregando processos...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
