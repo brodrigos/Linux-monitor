@@ -161,18 +161,22 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const filtered = services.filter(s => s.name.toLowerCase().includes(search) || s.description.toLowerCase().includes(search));
 
-    tbody.innerHTML = filtered.map(s => `
-      <tr>
-        <td><strong>${s.name}</strong></td>
-        <td>${s.description || '-'}</td>
-        <td><span class="badge-status ${s.active}">${s.active}</span></td>
-        <td>${s.sub}</td>
-        <td>
-          <button class="btn" onclick="serviceAction('${s.name}', 'restart')">Reiniciar</button>
-          <button class="btn danger" onclick="serviceAction('${s.name}', 'stop')">Parar</button>
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = filtered.map(s => {
+      const memMB = s.memory ? (s.memory / (1024 * 1024)).toFixed(2) : '0.00';
+      return `
+        <tr>
+          <td><strong>${s.name}</strong></td>
+          <td>${s.description || '-'}</td>
+          <td><span class="badge-status ${s.active}">${s.active}</span></td>
+          <td>${s.sub}</td>
+          <td>${memMB} MB</td>
+          <td>
+            <button class="btn" onclick="serviceAction('${s.name}', 'restart')">Reiniciar</button>
+            <button class="btn danger" onclick="serviceAction('${s.name}', 'stop')">Parar</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 
   function renderProcesses(processes) {

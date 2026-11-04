@@ -113,12 +113,41 @@ app.get('/api/stream', (req, res) => {
   });
 });
 
-// API: Services list using systemctl or fallback
+// API: Services list using systemctl or fallback with RAM usage
 app.get('/api/services', async (req, res) => {
   try {
-    // Try systemctl list-units
-    const { stdout } = await execPromise('systemctl list-units --type=service --no-legend --plain 2>/dev/null || true');
-    const lines = stdout.trim().split('\n').filter(Boolean);
+    const [listRes, showRes, processes] = await Promise.all([
+      execPromise('systemctl list-units --type=service --no-legend --plain 2>/dev/null || true'),
+      execPromise('systemctl show *.service --property=Id,MemoryCurrent,MainPID 2>/dev/null || true'),
+      si.processes()
+    ]);
+
+    const memMap = new Map();
+    const pidMemMap = new Map();
+    if (processes && processes.list) {
+      processes.list.forEach(p => pidMemMap.set(p.pid, p.memRss || 0));
+    }
+
+    const blocks = (showRes.stdout || '').split('\n\n');
+    blocks.forEach(block => {
+      let id = '', memory = 0, pid = 0;
+      block.split('\n').forEach(line => {
+        if (line.startsWith('Id=')) id = line.split('=')[1].trim();
+        if (line.startsWith('MemoryCurrent=')) {
+          const val = line.split('=')[1].trim();
+          if (val && val !== '[not set]') memory = Number(val) || 0;
+        }
+        if (line.startsWith('MainPID=')) pid = Number(line.split('=')[1].trim()) || 0;
+      });
+      if (id) {
+        if (memory === 0 && pid > 0 && pidMemMap.has(pid)) {
+          memory = pidMemMap.get(pid);
+        }
+        memMap.set(id, memory);
+      }
+    });
+
+    const lines = (listRes.stdout || '').trim().split('\n').filter(Boolean);
     const services = lines.map(line => {
       const parts = line.trim().split(/\s+/);
       const unit = parts[0] || '';
@@ -126,13 +155,15 @@ app.get('/api/services', async (req, res) => {
       const active = parts[2] || '';
       const sub = parts[3] || '';
       const description = parts.slice(4).join(' ') || '';
+      const memory = memMap.get(unit) || 0;
       return {
         name: unit.replace('.service', ''),
         unit,
         load,
         active,
         sub,
-        description
+        description,
+        memory
       };
     });
     res.json({ success: true, services });
@@ -146,7 +177,8 @@ app.get('/api/services', async (req, res) => {
         load: 'loaded',
         active: s.running ? 'active' : 'inactive',
         sub: s.running ? 'running' : 'dead',
-        description: s.name
+        description: s.name,
+        memory: 0
       }));
       res.json({ success: true, services });
     } catch (err) {
