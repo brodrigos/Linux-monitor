@@ -1,4 +1,3 @@
-document.addEventListener('DOMContentLoaded', () => {
   // Tab switching
   const tabButtons = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -15,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (targetId === 'services-tab') {
         loadServices();
         loadProcesses();
+      } else if (targetId === 'apps-tab') {
+        loadApps();
       }
     });
   });
@@ -468,6 +469,75 @@ document.addEventListener('DOMContentLoaded', () => {
       loadDiskSuggestions();
     } catch (err) {
       alert('Erro na limpeza: ' + err.message);
+    }
+  };
+
+  // Apps Manager Logic
+  let allApps = [];
+  let appSortCol = 'name';
+  let appSortAsc = true;
+
+  window.loadApps = async function() {
+    try {
+      const res = await fetch('/api/apps');
+      const data = await res.json();
+      if (data.success && data.apps) {
+        allApps = data.apps;
+        renderApps();
+      } else {
+        document.getElementById('apps-tbody').innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--accent-red);">Erro ao carregar aplicativos</td></tr>`;
+      }
+    } catch (err) {
+      document.getElementById('apps-tbody').innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--accent-red);">Erro: ${err.message}</td></tr>`;
+    }
+  };
+
+  window.sortApps = function(col) {
+    if (appSortCol === col) {
+      appSortAsc = !appSortAsc;
+    } else {
+      appSortCol = col;
+      appSortAsc = true;
+    }
+    renderApps();
+  };
+
+  function renderApps() {
+    const tbody = document.getElementById('apps-tbody');
+    const filtered = allApps; // Apps filtered by search input
+
+    tbody.innerHTML = filtered.map(a => {
+      const typeLabel = a.type === 'snap' ? '<span class="badge" style="background: rgba(139,92,246,0.2); color: var(--accent-purple); border: 1px solid var(--accent-purple);">Snap</span>' : '<span class="badge" style="background: rgba(59,130,246,0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue);">APT</span>';
+      return `
+        <tr>
+          <td><strong>${a.name}</strong></td>
+          <td>${typeLabel}</td>
+          <td style="color: var(--text-muted); font-size: 0.85rem;">${a.version || '-'}</td>
+          <td>
+            <button class="btn danger" onclick="removeApp('${a.name}', '${a.type}')">Remover</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  window.removeApp = async function(name, type) {
+    if (!confirm(`Deseja realmente remover o aplicativo "${name}" (${type})? Isso não afetará nenhum serviço ou configuração crítica.`)) return;
+    try {
+      const res = await fetch('/api/app/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, type })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        loadApps();
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    } catch (err) {
+      alert('Erro: ' + err.message);
     }
   };
 });

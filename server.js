@@ -429,6 +429,80 @@ app.post('/api/disk-cleanup', async (req, res) => {
   }
 });
 
+// API: List Installed Apps (Snap & APT)
+app.get('/api/apps', async (req, res) => {
+  try {
+    const apps = [];
+    
+    // 1. Get Snaps
+    try {
+      const { stdout } = await execPromise('snap list 2>/dev/null || true');
+      const lines = stdout.trim().split('\n').slice(1);
+      lines.forEach(line => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          apps.push({
+            name: parts[0],
+            version: parts[1],
+            type: 'snap',
+            publisher: parts[4] || 'local'
+          });
+        }
+      });
+    } catch (e) {}
+
+    // 2. Get user-installed explicit APT packages (using apt-mark showmanual)
+    try {
+      const { stdout } = await execPromise('apt-mark showmanual 2>/dev/null || true');
+      const manualPkgs = stdout.trim().split('\n').filter(Boolean);
+      if (manualPkgs.length > 0) {
+        // Query versions for manual packages
+        const { stdout: dpkgOut } = await execPromise(`dpkg-query -W -f='\${Package}\\t\${Version}\\n' ${manualPkgs.join(' ')} 2>/dev/null || true`);
+        const lines = dpkgOut.trim().split('\n').filter(Boolean);
+        lines.forEach(line => {
+          const parts = line.split('\t');
+          if (parts.length >= 2) {
+            apps.push({
+              name: parts[0],
+              version: parts[1],
+              type: 'apt',
+              publisher: 'ubuntu/debian'
+            });
+          }
+        });
+      }
+    } catch (e) {}
+
+    res.json({ success: true, apps });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: Remove Installed App
+app.post('/api/app/remove', async (req, res) => {
+  const { name, type } = req.body;
+  if (!name || !['snap', 'apt'].includes(type)) {
+    return res.status(400).json({ success: false, error: 'Parâmetros inválidos (name e type requeridos)' });
+  }
+
+  const criticalPkgs = ['systemd', 'snapd', 'bash', 'core', 'libc6', 'linux-base', 'ubuntu-keyring', 'linux-monitor'];
+  if (criticalPkgs.includes(name)) {
+    return res.status(403).json({ success: false, error: 'Remoção negada: Este é um pacote crítico do sistema.' });
+  }
+
+  try {
+    if (type === 'snap') {
+      await execPromise(`sudo snap remove "${name}"`);
+    } else {
+      await execPromise(`sudo apt-get remove -y "${name}"`);
+    }
+    res.json({ success: true, message: `Aplicativo ${name} (${type}) removido com sucesso!` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Falha ao remover aplicativo: ' + error.message });
+  }
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Linux-monitor rodando na porta ${PORT}`);
 });

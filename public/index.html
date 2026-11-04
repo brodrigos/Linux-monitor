@@ -28,6 +28,7 @@
   <nav class="tabs">
     <button class="tab-btn active" data-tab="hardware-tab">📊 Visão Geral do Hardware</button>
     <button class="tab-btn" data-tab="services-tab">⚙️ Serviços & Processos</button>
+    <button class="tab-btn" data-tab="apps-tab">📦 Aplicativos instalados</button>
   </nav>
 
   <main>
@@ -156,6 +157,33 @@
               </thead>
               <tbody id="processes-tbody">
                 <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Carregando processos...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: INSTALLED APPS -->
+    <div id="apps-tab" class="tab-content">
+      <div class="grid-cols-2" style="grid-template-columns: 1fr;">
+        <div class="card" style="margin-bottom: 1rem;">
+          <div class="card-header">
+            <h2>📦 Aplicativos instalados (Snap & Manual)</h2>
+            <button class="btn" onclick="loadApps()">🔄 Atualizar Apps</button>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="cursor: pointer;" onclick="sortApps('name')">Nome ↕</th>
+                  <th style="cursor: pointer;" onclick="sortApps('type')">Tipo ↕</th>
+                  <th>Versão</th>
+                  <th>Remover</th>
+                </tr>
+              </thead>
+              <tbody id="apps-tbody">
+                <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Carregando aplicativos...</td></tr>
               </tbody>
             </table>
           </div>
