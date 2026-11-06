@@ -3,19 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Linux-monitor - Painel de Recursos do Sistema</title>
+  <title>Linux-monitor - Desktop & Sistema</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <div class="logo-area">
+  <!-- Top System Bar -->
+  <header class="sys-topbar">
+    <div class="logo-area" style="cursor: pointer;" onclick="showDesktop()">
       <div class="logo-icon">🐧</div>
       <div class="logo-title">
         <h1>Linux-monitor</h1>
-        <span>Painel de Hardware & Serviços (Cross-Distro)</span>
+        <span id="desktop-status-text">Desktop Principal</span>
       </div>
     </div>
     <div class="server-badges">
+      <button class="btn" style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main);" onclick="showDesktop()">🏠 Desktop</button>
       <div class="badge">
         <span class="dot"></span>
         <span id="hostname-val">Conectando...</span>
@@ -25,151 +27,196 @@
     </div>
   </header>
 
-  <nav class="tabs">
-    <button class="tab-btn active" data-tab="hardware-tab">📊 Visão Geral do Hardware</button>
-    <button class="tab-btn" data-tab="services-tab">⚙️ Serviços & Processos</button>
-    <button class="tab-btn" data-tab="apps-tab">📦 Aplicativos instalados</button>
-  </nav>
-
-  <main>
-    <!-- TAB 1: HARDWARE OVERVIEW -->
-    <div id="hardware-tab" class="tab-content active">
-      <div class="grid-cols-2">
-        <!-- CPU Card -->
-        <div class="card">
-          <div class="card-header">
-            <h2>🖥️ Processador (CPU)</h2>
-            <span class="badge" id="cpu-temp">Temp: --°C</span>
-          </div>
-          <div class="metric-value" id="cpu-load-val">0%</div>
-          <div class="metric-sub" id="cpu-brand">Carregando CPU...</div>
-          <div class="progress-bar-container">
-            <div class="progress-bar cyan" id="cpu-load-bar" style="width: 0%"></div>
-          </div>
-          <div class="info-grid">
-            <div class="info-item">
-              <div class="label">Núcleos / Threads</div>
-              <div class="val" id="cpu-cores">--</div>
-            </div>
-            <div class="info-item">
-              <div class="label">Frequência</div>
-              <div class="val" id="cpu-speed">-- GHz</div>
-            </div>
-          </div>
-          <div style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted);">Uso por Núcleo:</div>
-          <div class="core-bars" id="core-bars">
-            <!-- Dynamic core bars -->
-          </div>
+  <!-- MAIN VIEW CONTAINER -->
+  <main class="desktop-main">
+    
+    <!-- DESKTOP VIEW (GRID OF ICONS) -->
+    <div id="desktop-view" class="view-section active">
+      <div class="desktop-welcome">
+        <h2>Área de Trabalho do Sistema</h2>
+        <p>Selecione um módulo abaixo para gerenciar os recursos, serviços, backups e aplicativos do servidor.</p>
+      </div>
+      
+      <div class="desktop-grid">
+        <!-- Icon 1: Hardware -->
+        <div class="desktop-icon" onclick="openModule('hardware-module')">
+          <div class="icon-symbol">📊</div>
+          <div class="icon-label">Hardware & Sistema</div>
+          <div class="icon-desc">CPU, RAM, Discos e Limpeza</div>
         </div>
 
-        <!-- RAM Memory Card -->
-        <div class="card">
-          <div class="card-header">
-            <h2>🧠 Memória RAM & Swap</h2>
-            <span class="badge">DDR / Física</span>
-          </div>
-          <div class="metric-value" id="mem-usage-val">0%</div>
-          <div class="metric-sub"><span id="mem-used">--</span> usado de <span id="mem-total">--</span></div>
-          <div class="progress-bar-container">
-            <div class="progress-bar blue" id="mem-bar" style="width: 0%"></div>
-          </div>
-          <div class="info-grid">
-            <div class="info-item">
-              <div class="label">Disponível / Livre</div>
-              <div class="val" id="mem-avail">--</div>
-            </div>
-            <div class="info-item">
-              <div class="label">Swap Usado</div>
-              <div class="val" id="swap-usage">--</div>
-            </div>
-          </div>
-          <button class="btn" onclick="clearRamCache()" style="background: var(--accent-green); margin-top: 1rem; width: 100%; font-size: 0.85rem; padding: 0.5rem;">🧹 Limpar Cache & Aliviar RAM</button>
-        </div>
-      </div>
-
-      <!-- Disks Grid -->
-      <div style="margin-bottom: 1rem;">
-        <h2 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 1rem; color: var(--accent-cyan);">💾 Discos & Armazenamento Instalados</h2>
-      </div>
-      <div class="grid-cols-3" id="disks-container">
-        <!-- Dynamic disk cards -->
-      </div>
-    </div>
-
-    <!-- TAB 2: SERVICES & PROCESSES -->
-    <div id="services-tab" class="tab-content">
-      <div class="grid-cols-2" style="grid-template-columns: 1fr;">
-        <!-- Services Section -->
-        <div class="card">
-          <div class="card-header">
-            <h2>⚙️ Serviços do Sistema (Systemd / Services)</h2>
-            <button class="btn" onclick="loadServices()">🔄 Atualizar Serviços</button>
-          </div>
-          <div class="controls-bar">
-            <input type="text" id="services-search" class="search-input" placeholder="Buscar serviço...">
-            <div class="filter-buttons">
-              <button class="filter-btn active" onclick="filterServicesByStatus('all')">Todos</button>
-              <button class="filter-btn" onclick="filterServicesByStatus('active')">Rodando</button>
-              <button class="filter-btn" onclick="filterServicesByStatus('inactive')">Parados</button>
-              <button class="filter-btn" onclick="filterServicesByStatus('failed')">Com Falha</button>
-            </div>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th style="cursor: pointer;" onclick="sortServices('name')">Serviço ↕</th>
-                  <th>Descrição</th>
-                  <th style="cursor: pointer;" onclick="sortServices('active')">Status ↕</th>
-                  <th>Substate</th>
-                  <th style="cursor: pointer;" onclick="sortServices('memory')">Memória RAM ↕</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody id="services-tbody">
-                <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Carregando serviços...</td></tr>
-              </tbody>
-            </table>
-          </div>
+        <!-- Icon 2: Task Manager -->
+        <div class="desktop-icon" onclick="openModule('tasks-module')">
+          <div class="icon-symbol">⚙️</div>
+          <div class="icon-label">Gerenciador de Tarefas</div>
+          <div class="icon-desc">Serviços Systemd & Processos</div>
         </div>
 
-        <!-- Processes Section -->
-        <div class="card" style="margin-top: 1.5rem;">
-          <div class="card-header">
-            <h2>⚡ Processos em Execução (Top Recursos)</h2>
-            <button class="btn" onclick="loadProcesses()">🔄 Atualizar Processos</button>
-          </div>
-          <div class="controls-bar">
-            <input type="text" id="processes-search" class="search-input" placeholder="Buscar processo por nome ou PID...">
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th style="cursor: pointer;" onclick="sortProcesses('pid')">PID ↕</th>
-                  <th>Usuário</th>
-                  <th style="cursor: pointer;" onclick="sortProcesses('name')">Nome ↕</th>
-                  <th style="cursor: pointer;" onclick="sortProcesses('cpu')">% CPU ↕</th>
-                  <th style="cursor: pointer;" onclick="sortProcesses('mem')">% Mem (RSS) ↕</th>
-                  <th>Estado</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody id="processes-tbody">
-                <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Carregando processos...</td></tr>
-              </tbody>
-            </table>
-          </div>
+        <!-- Icon 3: Apps Manager -->
+        <div class="desktop-icon" onclick="openModule('apps-module')">
+          <div class="icon-symbol">📦</div>
+          <div class="icon-label">Aplicativos Instalados</div>
+          <div class="icon-desc">Pacotes Snap & APT</div>
+        </div>
+
+        <!-- Icon 4: Backup & NAS -->
+        <div class="desktop-icon" onclick="openModule('backup-module')">
+          <div class="icon-symbol">💾</div>
+          <div class="icon-label">Backup & NAS</div>
+          <div class="icon-desc">Imagem de Disco & Agendamentos</div>
         </div>
       </div>
     </div>
 
-    <!-- TAB 3: INSTALLED APPS -->
-    <div id="apps-tab" class="tab-content">
-      <div class="grid-cols-2" style="grid-template-columns: 1fr;">
+    <!-- MODULE 1: HARDWARE -->
+    <div id="hardware-module" class="view-section module-window">
+      <div class="module-header-bar">
+        <h2>📊 Visão Geral do Hardware & Armazenamento</h2>
+        <button class="btn danger" onclick="showDesktop()">✕ Fechar / Voltar ao Desktop</button>
+      </div>
+      <div class="module-body">
+        <div class="grid-cols-2">
+          <!-- CPU Card -->
+          <div class="card">
+            <div class="card-header">
+              <h2>🖥️ Processador (CPU)</h2>
+              <span class="badge" id="cpu-temp">Temp: --°C</span>
+            </div>
+            <div class="metric-value" id="cpu-load-val">0%</div>
+            <div class="metric-sub" id="cpu-brand">Carregando CPU...</div>
+            <div class="progress-bar-container">
+              <div class="progress-bar cyan" id="cpu-load-bar" style="width: 0%"></div>
+            </div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="label">Núcleos / Threads</div>
+                <div class="val" id="cpu-cores">--</div>
+              </div>
+              <div class="info-item">
+                <div class="label">Frequência</div>
+                <div class="val" id="cpu-speed">-- GHz</div>
+              </div>
+            </div>
+            <div style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted);">Uso por Núcleo:</div>
+            <div class="core-bars" id="core-bars"></div>
+          </div>
+
+          <!-- RAM Memory Card -->
+          <div class="card">
+            <div class="card-header">
+              <h2>🧠 Memória RAM & Swap</h2>
+              <span class="badge">DDR / Física</span>
+            </div>
+            <div class="metric-value" id="mem-usage-val">0%</div>
+            <div class="metric-sub"><span id="mem-used">--</span> usado de <span id="mem-total">--</span></div>
+            <div class="progress-bar-container">
+              <div class="progress-bar blue" id="mem-bar" style="width: 0%"></div>
+            </div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="label">Disponível / Livre</div>
+                <div class="val" id="mem-avail">--</div>
+              </div>
+              <div class="info-item">
+                <div class="label">Swap Usado</div>
+                <div class="val" id="swap-usage">--</div>
+              </div>
+            </div>
+            <button class="btn" onclick="clearRamCache()" style="background: var(--accent-green); margin-top: 1rem; width: 100%; font-size: 0.85rem; padding: 0.5rem;">🧹 Limpar Cache & Aliviar RAM</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1rem; margin-top: 2rem;">
+          <h2 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 1rem; color: var(--accent-cyan);">💾 Discos & Armazenamento Instalados</h2>
+        </div>
+        <div class="grid-cols-3" id="disks-container"></div>
+      </div>
+    </div>
+
+    <!-- MODULE 2: TASK MANAGER -->
+    <div id="tasks-module" class="view-section module-window">
+      <div class="module-header-bar">
+        <h2>⚙️ Gerenciador de Tarefas (Serviços & Processos)</h2>
+        <button class="btn danger" onclick="showDesktop()">✕ Fechar / Voltar ao Desktop</button>
+      </div>
+      <div class="module-body">
+        <div class="grid-cols-2" style="grid-template-columns: 1fr;">
+          <!-- Services Section -->
+          <div class="card">
+            <div class="card-header">
+              <h2>⚙️ Serviços do Sistema (Systemd)</h2>
+              <button class="btn" onclick="loadServices()">🔄 Atualizar Serviços</button>
+            </div>
+            <div class="controls-bar">
+              <input type="text" id="services-search" class="search-input" placeholder="Buscar serviço...">
+              <div class="filter-buttons">
+                <button class="filter-btn active" onclick="filterServicesByStatus('all')">Todos</button>
+                <button class="filter-btn" onclick="filterServicesByStatus('active')">Rodando</button>
+                <button class="filter-btn" onclick="filterServicesByStatus('inactive')">Parados</button>
+                <button class="filter-btn" onclick="filterServicesByStatus('failed')">Com Falha</button>
+              </div>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="cursor: pointer;" onclick="sortServices('name')">Serviço ↕</th>
+                    <th>Descrição</th>
+                    <th style="cursor: pointer;" onclick="sortServices('active')">Status ↕</th>
+                    <th>Substate</th>
+                    <th style="cursor: pointer;" onclick="sortServices('memory')">Memória RAM ↕</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="services-tbody">
+                  <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Carregando serviços...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Processes Section -->
+          <div class="card" style="margin-top: 1.5rem;">
+            <div class="card-header">
+              <h2>⚡ Processos em Execução (Top Recursos)</h2>
+              <button class="btn" onclick="loadProcesses()">🔄 Atualizar Processos</button>
+            </div>
+            <div class="controls-bar">
+              <input type="text" id="processes-search" class="search-input" placeholder="Buscar processo por nome ou PID...">
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="cursor: pointer;" onclick="sortProcesses('pid')">PID ↕</th>
+                    <th>Usuário</th>
+                    <th style="cursor: pointer;" onclick="sortProcesses('name')">Nome ↕</th>
+                    <th style="cursor: pointer;" onclick="sortProcesses('cpu')">% CPU ↕</th>
+                    <th style="cursor: pointer;" onclick="sortProcesses('mem')">% Mem (RSS) ↕</th>
+                    <th>Estado</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="processes-tbody">
+                  <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Carregando processos...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODULE 3: APPS MANAGER -->
+    <div id="apps-module" class="view-section module-window">
+      <div class="module-header-bar">
+        <h2>📦 Aplicativos Instalados (Snap & APT)</h2>
+        <button class="btn danger" onclick="showDesktop()">✕ Fechar / Voltar ao Desktop</button>
+      </div>
+      <div class="module-body">
         <div class="card" style="margin-bottom: 1rem;">
           <div class="card-header">
-            <h2>📦 Aplicativos instalados (Snap & Manual)</h2>
+            <h2>📦 Gerenciador de Pacotes do Sistema</h2>
             <button class="btn" onclick="loadApps()">🔄 Atualizar Apps</button>
           </div>
           <div class="table-container">
@@ -190,6 +237,46 @@
         </div>
       </div>
     </div>
+
+    <!-- MODULE 4: BACKUP & NAS -->
+    <div id="backup-module" class="view-section module-window">
+      <div class="module-header-bar">
+        <h2>💾 Backup & Recuperação (NAS Synology)</h2>
+        <button class="btn danger" onclick="showDesktop()">✕ Fechar / Voltar ao Desktop</button>
+      </div>
+      <div class="module-body">
+        <div class="card">
+          <div class="card-header">
+            <h2>🚀 Sistema de Imagem de Disco & Backup Remoto</h2>
+            <span class="badge">NAS: 192.168.1.130</span>
+          </div>
+          <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+            Realiza backup completo do sistema em formato <code>.tar.gz</code> com trava de concorrência (Mutex Lock) e armazenamento automático no NAS Synology (`/mnt/synology_backup`).
+          </p>
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+            <button class="btn" style="background: var(--accent-cyan); color: var(--bg-primary); font-weight: 700; padding: 0.75rem 1.5rem;" onclick="triggerManualBackup()">▶️ Iniciar Backup Manual Agora</button>
+            <button class="btn" style="background: var(--bg-secondary); border: 1px solid var(--border-color);" onclick="loadBackupList()">🔄 Atualizar Lista de Backups</button>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Arquivo de Backup</th>
+                  <th>Tamanho</th>
+                  <th>Data / Timestamp</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="backup-tbody">
+                <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Clique em atualizar para listar os backups no NAS...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Storage / Disk Scanner Modal -->
@@ -209,9 +296,7 @@
         </div>
 
         <div id="disk-view-explorer">
-          <div class="breadcrumb-bar" id="disk-breadcrumb">
-            <!-- Breadcrumb items -->
-          </div>
+          <div class="breadcrumb-bar" id="disk-breadcrumb"></div>
           <div class="table-container" style="max-height: 400px;">
             <table>
               <thead>

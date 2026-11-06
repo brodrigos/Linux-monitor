@@ -1,25 +1,35 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Tab switching
-  const tabButtons = document.querySelectorAll('.tab-btn');
-  const tabContents = document.querySelectorAll('.tab-content');
+  // Desktop navigation / Module windows
+  window.showDesktop = function() {
+    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+    document.getElementById('desktop-view').classList.add('active');
+    document.getElementById('desktop-status-text').textContent = 'Desktop Principal';
+  };
 
-  tabButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      tabButtons.forEach(b => b.classList.remove('active'));
-      tabContents.forEach(c => c.classList.remove('active'));
+  window.openModule = function(moduleId) {
+    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+    const target = document.getElementById(moduleId);
+    if (target) {
+      target.classList.add('active');
+      const titles = {
+        'hardware-module': 'Módulo: Hardware & Sistema',
+        'tasks-module': 'Módulo: Gerenciador de Tarefas',
+        'apps-module': 'Módulo: Aplicativos Instalados',
+        'backup-module': 'Módulo: Backup & NAS'
+      };
+      document.getElementById('desktop-status-text').textContent = titles[moduleId] || 'Módulo Ativo';
 
-      btn.classList.add('active');
-      const targetId = btn.getAttribute('data-tab');
-      document.getElementById(targetId).classList.add('active');
-
-      if (targetId === 'services-tab') {
+      // Load specific data on module open
+      if (moduleId === 'tasks-module') {
         loadServices();
         loadProcesses();
-      } else if (targetId === 'apps-tab') {
+      } else if (moduleId === 'apps-module') {
         loadApps();
+      } else if (moduleId === 'backup-module') {
+        loadBackupList();
       }
-    });
-  });
+    }
+  };
 
   // Formatting helpers
   function formatBytes(bytes, decimals = 2) {
@@ -186,7 +196,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderServices(services) {
     const tbody = document.getElementById('services-tbody');
-    const search = document.getElementById('services-search').value.toLowerCase();
+    const searchElem = document.getElementById('services-search');
+    const search = searchElem ? searchElem.value.toLowerCase() : '';
     
     const filtered = services.filter(s => s.name.toLowerCase().includes(search) || s.description.toLowerCase().includes(search));
 
@@ -221,7 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderProcesses(processes) {
     const tbody = document.getElementById('processes-tbody');
-    const search = document.getElementById('processes-search').value.toLowerCase();
+    const searchElem = document.getElementById('processes-search');
+    const search = searchElem ? searchElem.value.toLowerCase() : '';
 
     const filtered = processes.filter(p => p.name.toLowerCase().includes(search) || String(p.pid).includes(search));
 
@@ -252,12 +264,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Filter handlers
-  document.getElementById('services-search').addEventListener('input', () => renderServices(allServices));
-  document.getElementById('processes-search').addEventListener('input', () => renderProcesses(allProcesses));
+  const sSearch = document.getElementById('services-search');
+  if (sSearch) sSearch.addEventListener('input', () => renderServices(allServices));
+  const pSearch = document.getElementById('processes-search');
+  if (pSearch) pSearch.addEventListener('input', () => renderProcesses(allProcesses));
 
   window.filterServicesByStatus = function(status) {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    event.target.classList.add('active');
+    if (event && event.target) event.target.classList.add('active');
     if (status === 'all') {
       renderServices(allServices);
     } else {
@@ -298,9 +312,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // Periodic refresh for processes tab if active
+  // Periodic refresh for processes if task module is active
   setInterval(() => {
-    if (document.getElementById('services-tab').classList.contains('active')) {
+    const tasksModule = document.getElementById('tasks-module');
+    if (tasksModule && tasksModule.classList.contains('active')) {
       loadProcesses();
     }
   }, 5000);
@@ -505,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderApps() {
     const tbody = document.getElementById('apps-tbody');
-    const filtered = allApps; // Apps filtered by search input
+    const filtered = allApps;
 
     tbody.innerHTML = filtered.map(a => {
       const typeLabel = a.type === 'snap' ? '<span class="badge" style="background: rgba(139,92,246,0.2); color: var(--accent-purple); border: 1px solid var(--accent-purple);">Snap</span>' : '<span class="badge" style="background: rgba(59,130,246,0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue);">APT</span>';
@@ -539,6 +554,52 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       alert('Erro: ' + err.message);
+    }
+  };
+
+  // Backup & NAS Logic
+  window.loadBackupList = async function() {
+    const tbody = document.getElementById('backup-tbody');
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Carregando arquivos de backup do NAS...</td></tr>`;
+    try {
+      const res = await fetch('/api/backup/list');
+      const data = await res.json();
+      if (data.success && data.backups) {
+        if (data.backups.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Nenhum backup encontrado no NAS.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = data.backups.map(b => `
+          <tr>
+            <td><strong>📁 ${b.name}</strong></td>
+            <td>${formatBytes(b.size)}</td>
+            <td style="color: var(--text-muted);">${new Date(b.time).toLocaleString()}</td>
+            <td>
+              <a class="btn" href="/api/backup/download?file=${encodeURIComponent(b.name)}" target="_blank" style="text-decoration: none;">Download</a>
+            </td>
+          </tr>
+        `).join('');
+      } else {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--accent-red);">Erro ao listar backups: ${data.error || 'NAS não montado'}</td></tr>`;
+      }
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--accent-red);">Erro: ${err.message}</td></tr>`;
+    }
+  };
+
+  window.triggerManualBackup = async function() {
+    if (!confirm('Deseja iniciar um backup manual completo do sistema para o NAS Synology agora?')) return;
+    try {
+      const res = await fetch('/api/backup/start', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert('Backup iniciado com sucesso! ' + (data.filename || ''));
+        loadBackupList();
+      } else {
+        alert('Aviso/Erro: ' + (data.error || data.message));
+      }
+    } catch (err) {
+      alert('Erro ao disparar backup: ' + err.message);
     }
   };
 });
