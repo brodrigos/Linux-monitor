@@ -1,3 +1,4 @@
+document.addEventListener('DOMContentLoaded', () => {
   // Tab switching
   const tabButtons = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
