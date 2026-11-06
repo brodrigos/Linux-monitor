@@ -80,3 +80,22 @@ Abra no navegador:
 ## 📄 Licença
 
 Distribuído sob a licença MIT. Desenvolvido por [Brodrigos](https://github.com/brodrigos).
+
+---
+
+## 📋 Changelog & Histórico de Versões
+
+### 🚀 v1.1.0 — Sistema Completo de Backup & Recuperação (NAS)
+- **Montagem Automática e Persistente do NAS**: Função `ensureNasMounted` em `server.js` verificando e montando o share CIFS (`//192.168.1.130/backup`) com permissões adequadas (`uid=rodrigo,gid=rodrigo`) para evitar erros de permissão (`EACCES`).
+- **Backup Estilo Imagem de Disco**: Compactação e empacotamento com padrão de nomenclatura cross-distro: `[hostname]-[distro]-[versao]-[timestamp].tar.gz`.
+- **Trava de Concorrência (Mutex Lock)**: Variável `backupRunning` para impedir execuções simultâneas via `tar` (retorna HTTP 409 Conflict ou pula execuções automáticas se ocupado).
+- **Agendamento Automático**: Interface e rotinas configuráveis de backup salvas em `backup-schedule.json`.
+- **Nova Aba no Frontend**: Aba dedicada *"Backup & Recuperação (NAS)"* em `public/index.html` e gerenciada por `public/app.js`.
+
+### 🛠️ Versões Anteriores / Melhorias Recentes
+- **Gerenciador de Aplicativos Dedicado**: Migração do gerenciador de apps para uma aba própria e sincronização de deployment em `server.js`.
+- **Sugestões de Limpeza de Disco**: Adição de limpeza segura para logs do `journal`, pacotes `snap` antigos, cache `apt` e arquivos temporários `/tmp` com confirmação.
+- **Limpeza de Cache de RAM (`drop_caches`)**: Mecanismo seguro de liberação de cache de memória sem impactar processos ativos.
+- **Scanner de Diretórios de Armazenamento**: Modal interativo de escopo de diretórios com navegação em árvore (*drill-down*) e migalhas de pão (*breadcrumbs*).
+- **Ordenação Interativa de Tabelas**: Suporte a ordenação ascendente e descendente nos cabeçalhos das tabelas de serviços e processos.
+- **Monitoramento de Memória para Serviços**: Acompanhamento detalhado do consumo de RAM por serviço do sistema.
