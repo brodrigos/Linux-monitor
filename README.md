@@ -85,6 +85,11 @@ Distribuído sob a licença MIT. Desenvolvido por [Brodrigos](https://github.com
 
 ## 📋 Changelog & Histórico de Versões
 
+### 🖥️ v1.2.0 (Versão Atual) — Reestruturação Visual Estilo Desktop Modular
+- **Interface Desktop com Ícones de Lançamento**: Substituição do sistema de abas por uma Área de Trabalho interativa com ícones dedicados para cada módulo (`Hardware`, `Gerenciador de Tarefas`, `Aplicativos Instalados` e `Backup & NAS`).
+- **Gerenciador de Janelas Modulares**: Cada módulo abre como uma janela própria com botão de *"Fechar / Voltar ao Desktop"*, além do botão global de retorno no topo.
+- **Carregamento Otimizado por Módulo**: Os dados de cada seção (serviços/processos, apps instalados, backups remotamente montados no NAS) agora são carregados sob demanda apenas quando o módulo correspondente é aberto.
+
 ### 🚀 v1.1.0 — Sistema Completo de Backup & Recuperação (NAS)
 - **Montagem Automática e Persistente do NAS**: Função `ensureNasMounted` em `server.js` verificando e montando o share CIFS (`//192.168.1.130/backup`) com permissões adequadas (`uid=rodrigo,gid=rodrigo`) para evitar erros de permissão (`EACCES`).
 - **Backup Estilo Imagem de Disco**: Compactação e empacotamento com padrão de nomenclatura cross-distro: `[hostname]-[distro]-[versao]-[timestamp].tar.gz`.
