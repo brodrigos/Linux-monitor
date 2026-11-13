@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadApps();
       } else if (moduleId === 'backup-module') {
         loadBackupList();
+        loadDestinations();
       }
     }
   };
@@ -557,7 +558,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // Backup & NAS Logic
+  let backupPollInterval = null;
+
   window.loadBackupList = async function() {
     const tbody = document.getElementById('backup-tbody');
     tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Carregando arquivos de backup do NAS...</td></tr>`;
@@ -575,7 +577,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <td>${formatBytes(b.size)}</td>
             <td style="color: var(--text-muted);">${new Date(b.time).toLocaleString()}</td>
             <td>
-              <a class="btn" href="/api/backup/download?file=${encodeURIComponent(b.name)}" target="_blank" style="text-decoration: none;">Download</a>
+              <div style="display: flex; gap: 0.5rem;">
+                <a class="btn" href="/api/backup/download?file=${encodeURIComponent(b.name)}" target="_blank" style="text-decoration: none;">Download</a>
+                <button class="btn danger" onclick="deleteBackup('${b.name}')">Excluir</button>
+              </div>
             </td>
           </tr>
         `).join('');
@@ -587,14 +592,87 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  window.triggerManualBackup = async function() {
-    if (!confirm('Deseja iniciar um backup manual completo do sistema para o NAS Synology agora?')) return;
+  window.loadDestinations = async function() {
     try {
-      const res = await fetch('/api/backup/start', { method: 'POST' });
+      const res = await fetch('/api/backup/destinations');
+      const data = await res.json();
+      const select = document.getElementById('backup-destination');
+      if (data.success && data.destinations) {
+        select.innerHTML = data.destinations.map(d => `
+          <option value="${d.mount}" ${d.mount === data.current ? 'selected' : ''}>
+            ${d.device || 'Destino'} - ${d.mount} (${d.use || 'Desconhecido'})
+          </option>
+        `).join('');
+      }
+    } catch (e) {}
+  };
+
+  async function checkBackupStatus() {
+    try {
+      const res = await fetch('/api/backup/status');
+      const data = await res.json();
+      const progressContainer = document.getElementById('backup-progress-container');
+      const startBtn = document.getElementById('btn-start-backup');
+      const cancelBtn = document.getElementById('btn-cancel-backup');
+      const progressBar = document.getElementById('backup-progress-bar');
+      const sizeText = document.getElementById('backup-size-text');
+      const fileText = document.getElementById('backup-file-text');
+      const rateText = document.getElementById('backup-rate-text');
+      const statusText = document.getElementById('backup-status-text');
+
+      if (data.running) {
+        progressContainer.style.display = 'block';
+        startBtn.style.display = 'none';
+        cancelBtn.style.display = 'inline-block';
+
+        const sizeMB = (data.size / (1024 * 1024)).toFixed(2);
+        const rateMbps = data.mbps || 0;
+        sizeText.textContent = `Tamanho atual: ${sizeMB} MB`;
+        rateText.textContent = `${rateMbps} MB/s`;
+        fileText.textContent = `Arquivo: ${data.filename || '—'}`;
+
+        const elapsed = data.elapsed_seconds || 0;
+        const etaSeconds = rateMbps > 0 ? Math.max(0, Math.round((5000 - sizeMB) / rateMbps)) : 0;
+        const etaMin = Math.floor(etaSeconds / 60);
+        const etaSec = etaSeconds % 60;
+
+        // Estimativa simples de progresso baseada em 5GB esperados de sistema compactado
+        const estimatedTotalBytes = 5 * 1024 * 1024 * 1024;
+        let percent = Math.min(95, Math.round((data.size / estimatedTotalBytes) * 100));
+        if (percent < 2) percent = 2;
+
+        progressBar.style.width = percent + '%';
+        statusText.textContent = `Compactando sistema... (${percent}%)`;
+        rateText.textContent += ` · ETA: ${etaMin.toString().padStart(2,'0')}:${etaSec.toString().padStart(2,'0')}`;
+      } else {
+        if (backupPollInterval) {
+          clearInterval(backupPollInterval);
+          backupPollInterval = null;
+        }
+        progressContainer.style.display = 'none';
+        startBtn.style.display = 'inline-block';
+        cancelBtn.style.display = 'none';
+        loadBackupList();
+      }
+    } catch (e) {}
+  }
+
+  window.triggerManualBackup = async function() {
+    if (!confirm('Deseja iniciar um backup manual completo do sistema agora?')) return;
+    const destination = document.getElementById('backup-destination').value;
+    try {
+      const res = await fetch('/api/backup/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destination: destination || '/mnt/synology_backup' })
+      });
       const data = await res.json();
       if (data.success) {
-        alert('Backup iniciado com sucesso! ' + (data.filename || ''));
-        loadBackupList();
+        document.getElementById('backup-progress-container').style.display = 'block';
+        document.getElementById('btn-start-backup').style.display = 'none';
+        document.getElementById('btn-cancel-backup').style.display = 'inline-block';
+        if (backupPollInterval) clearInterval(backupPollInterval);
+        backupPollInterval = setInterval(checkBackupStatus, 2000);
       } else {
         alert('Aviso/Erro: ' + (data.error || data.message));
       }
@@ -602,4 +680,47 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Erro ao disparar backup: ' + err.message);
     }
   };
+
+  window.cancelManualBackup = async function() {
+    if (!confirm('Deseja realmente cancelar o backup em andamento? O arquivo parcial criado será apagado.')) return;
+    try {
+      const res = await fetch('/api/backup/cancel', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert('Backup cancelado com sucesso.');
+        if (backupPollInterval) {
+          clearInterval(backupPollInterval);
+          backupPollInterval = null;
+        }
+        document.getElementById('backup-progress-container').style.display = 'none';
+        document.getElementById('btn-start-backup').style.display = 'inline-block';
+        document.getElementById('btn-cancel-backup').style.display = 'none';
+        loadBackupList();
+      } else {
+        alert('Erro ao cancelar: ' + data.error);
+      }
+    } catch (err) {
+      alert('Erro ao cancelar backup: ' + err.message);
+    }
+  };
+
+  window.deleteBackup = async function(fileName) {
+    if (!confirm(`Deseja realmente excluir o arquivo de backup "${fileName}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      const res = await fetch(`/api/backup/delete?file=${encodeURIComponent(fileName)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        loadBackupList();
+      } else {
+        alert('Erro ao excluir backup: ' + data.error);
+      }
+    } catch (err) {
+      alert('Erro na requisição de exclusão: ' + err.message);
+    }
+  };
+
+  // Inicializar destinos e status ao carregar o módulo
+  loadDestinations();
+  checkBackupStatus();
 });

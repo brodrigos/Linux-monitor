@@ -253,9 +253,28 @@
           <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
             Realiza backup completo do sistema em formato <code>.tar.gz</code> com trava de concorrência (Mutex Lock) e armazenamento automático no NAS Synology (`/mnt/synology_backup`).
           </p>
-          <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
-            <button class="btn" style="background: var(--accent-cyan); color: var(--bg-primary); font-weight: 700; padding: 0.75rem 1.5rem;" onclick="triggerManualBackup()">▶️ Iniciar Backup Manual Agora</button>
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center;">
+            <select id="backup-destination" style="padding: 0.5rem; font-size: 0.9rem; min-width: 200px;">
+              <option value="/mnt/synology_backup">📦 NAS Synology (192.168.1.130)</option>
+            </select>
+            <button class="btn" id="btn-start-backup" style="background: var(--accent-cyan); color: var(--bg-primary); font-weight: 700; padding: 0.75rem 1.5rem;" onclick="triggerManualBackup()">▶️ Iniciar Backup Manual Agora</button>
+            <button class="btn danger" id="btn-cancel-backup" style="display: none; font-weight: 700; padding: 0.75rem 1.5rem;" onclick="cancelManualBackup()">🛑 Cancelar Backup</button>
             <button class="btn" style="background: var(--bg-secondary); border: 1px solid var(--border-color);" onclick="loadBackupList()">🔄 Atualizar Lista de Backups</button>
+          </div>
+
+          <!-- Progress Bar Section -->
+          <div id="backup-progress-container" style="display: none; margin-bottom: 1.5rem; background: var(--bg-secondary); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+              <span id="backup-status-text" style="font-weight: 600; color: var(--accent-cyan);">Realizando backup...</span>
+              <span id="backup-rate-text" style="color: var(--text-muted);">0 MB/s</span>
+            </div>
+            <div style="width: 100%; background: var(--bg-primary); height: 12px; border-radius: 6px; overflow: hidden; position: relative;">
+              <div id="backup-progress-bar" style="width: 0%; height: 100%; background: var(--accent-cyan); transition: width 0.4s ease;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
+              <span id="backup-size-text">Tamanho atual: 0 MB</span>
+              <span id="backup-file-text">Arquivo: —</span>
+            </div>
           </div>
 
           <div class="table-container">

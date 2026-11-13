@@ -85,7 +85,15 @@ Distribuído sob a licença MIT. Desenvolvido por [Brodrigos](https://github.com
 
 ## 📋 Changelog & Histórico de Versões
 
-### 🖥️ v1.2.0 (Versão Atual) — Reestruturação Visual Estilo Desktop Modular
+### 🖥️ v1.2.1 (Versão Atual) — Melhorias no Sistema de Backup & NAS
+- **Barra de Progresso e Taxa de Transferência**: Exibição de barra de progresso animada, tamanho atual do arquivo, taxa de criação em **MB/s** e tempo estimado de conclusão (ETA) durante backups manuais.
+- **Cancelamento com Limpeza Automática**: Botão *"🛑 Cancelar Backup"* que encerra o processo de compactação em segundo plano e remove automaticamente o arquivo `.tar.gz` parcial/incompleto do NAS.
+- **Exclusão de Backups**: Botão *"Excluir"* em cada arquivo listado para remoção definitiva do backup do NAS Synology.
+- **Seleção de Destino de Backup**: Dropdown para escolher onde o backup será gravado (NAS Synology, partições locais ou diretório customizado) via novo endpoint `GET /api/backup/destinations`.
+- **Nome de Arquivo Aprimorado**: Nomenclatura agora usa hostname real (ex: `rodrigo-Lava`), distro detectada via `/etc/os-release` e versão do sistema, eliminando valores genéricos como `linux-unknown`.
+- **Taxa de Transferência (MB/s)**: Cálculo em tempo real da velocidade de gravação baseado no tamanho do arquivo e tempo decorrido desde o início do backup.
+
+### 🖥️ v1.2.0 (Versão Anterior) — Reestruturação Visual Estilo Desktop Modular
 - **Interface Desktop com Ícones de Lançamento**: Substituição do sistema de abas por uma Área de Trabalho interativa com ícones dedicados para cada módulo (`Hardware`, `Gerenciador de Tarefas`, `Aplicativos Instalados` e `Backup & NAS`).
 - **Gerenciador de Janelas Modulares**: Cada módulo abre como uma janela própria com botão de *"Fechar / Voltar ao Desktop"*, além do botão global de retorno no topo.
 - **Carregamento Otimizado por Módulo**: Os dados de cada seção (serviços/processos, apps instalados, backups remotamente montados no NAS) agora são carregados sob demanda apenas quando o módulo correspondente é aberto.

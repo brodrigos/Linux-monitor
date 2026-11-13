@@ -503,6 +503,492 @@ app.post('/api/app/remove', async (req, res) => {
   }
 });
 
+// ==================== BACKUP & NAS MODULE ====================
+const SCHEDULE_PATH = path.join(__dirname, 'backup-schedule.json');
+let backupSchedules = [];
+let scheduleInterval = null;
+let backupRunning = false;
+let currentBackupPid = null;
+let currentBackupFile = null;
+let backupStartTime = null;
+
+function getBackupConfig() {
+  const mountPoint = process.env.BACKUP_MOUNT || '/mnt/synology_backup';
+  return {
+    mount_point: mountPoint,
+    nas_ip: '192.168.1.130'
+  };
+}
+
+async function ensureNasMounted() {
+  const cfg = getBackupConfig();
+  if (!fs.existsSync(cfg.mount_point)) {
+    try {
+      fs.mkdirSync(cfg.mount_point, { recursive: true });
+    } catch (e) {}
+  }
+}
+
+// API: Listar Backups
+app.get('/api/backup/list', async (req, res) => {
+  try {
+    const cfg = getBackupConfig();
+    const backupDir = path.join(cfg.mount_point, 'linux-monitor-backups');
+    
+    let targetDir = backupDir;
+    if (!fs.existsSync(backupDir)) {
+      if (fs.existsSync(cfg.mount_point)) {
+        targetDir = cfg.mount_point;
+      } else {
+        try {
+          fs.mkdirSync(backupDir, { recursive: true });
+          targetDir = backupDir;
+        } catch (e) {
+          targetDir = path.join(__dirname, 'backups');
+          if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+          }
+        }
+      }
+    }
+
+    const files = fs.readdirSync(targetDir);
+    const backups = [];
+    for (const file of files) {
+      if (file.endsWith('.tar.gz') || file.endsWith('.tgz') || file.endsWith('.zip')) {
+        const filePath = path.join(targetDir, file);
+        try {
+          const stats = fs.statSync(filePath);
+          backups.push({
+            name: file,
+            size: stats.size,
+            time: stats.mtime.toISOString(),
+            path: filePath
+          });
+        } catch (e) {}
+      }
+    }
+
+    backups.sort((a, b) => new Date(b.time) - new Date(a.time));
+    res.json({ success: true, backups, mount_point: targetDir });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: Listar destinos de backup disponíveis
+app.get('/api/backup/destinations', async (req, res) => {
+  try {
+    const destinations = [];
+    
+    try {
+      const { stdout } = await execPromise('df -h | grep -E "^/dev|^//|^192|^NAS" 2>/dev/null || true');
+      const lines = stdout.trim().split('\n').filter(Boolean);
+      lines.forEach(line => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 6) {
+          destinations.push({
+            device: parts[0],
+            mount: parts[5],
+            size: parts[1],
+            used: parts[2],
+            available: parts[3],
+            use: parts[4]
+          });
+        }
+      });
+    } catch (e) {}
+
+    const cfg = getBackupConfig();
+    if (!destinations.some(d => d.mount === cfg.mount_point)) {
+      destinations.push({
+        device: 'CIFS/NAS',
+        mount: cfg.mount_point,
+        size: 'Configurado',
+        used: '-',
+        available: '-',
+        use: '-'
+      });
+    }
+
+    const localBackupDir = path.join(__dirname, 'backups');
+    if (!destinations.some(d => d.mount === localBackupDir)) {
+      destinations.push({
+        device: 'Local',
+        mount: localBackupDir,
+        size: 'Local',
+        used: '-',
+        available: '-',
+        use: '-'
+      });
+    }
+
+    res.json({ success: true, destinations, current: cfg.mount_point });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: Iniciar Backup Manual
+app.post('/api/backup/start', async (req, res) => {
+  if (backupRunning) {
+    return res.status(409).json({ success: false, error: 'Um backup já está em andamento. Aguarde a conclusão.' });
+  }
+
+  try {
+    backupRunning = true;
+    backupStartTime = Date.now();
+    
+    const requestedDest = req.body?.destination || null;
+    let targetDir = requestedDest ? path.join(requestedDest, 'linux-monitor-backups') : path.join(getBackupConfig().mount_point, 'linux-monitor-backups');
+    
+    if (!fs.existsSync(targetDir)) {
+      try {
+        fs.mkdirSync(targetDir, { recursive: true });
+      } catch (e) {
+        targetDir = path.join(__dirname, 'backups');
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+      }
+    }
+
+    const osInfo = await si.osInfo();
+    
+    let hostname = osInfo.hostname || 'linux-server';
+    if (hostname === 'linux-server') {
+        try { hostname = fs.readFileSync('/etc/hostname', 'utf8').trim(); } catch (e) {}
+    }
+    hostname = hostname.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'linux-server';
+    
+    let distro = (osInfo.distro || 'linux').toLowerCase().replace(/[^a-z0-9]/g, '-');
+    let release = (osInfo.release || 'unknown').toLowerCase().replace(/[^a-z0-9.-]/g, '-');
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupName = `${hostname}-${distro}-${release}-${timestamp}.tar.gz`;
+    const backupPath = path.join(targetDir, backupName);
+    currentBackupFile = backupPath;
+
+    const cmd = `tar --exclude='/dev/*' --exclude='/proc/*' --exclude='/sys/*' --exclude='/tmp/*' --exclude='/run/*' --exclude='/mnt/*' --exclude='/media/*' --exclude='/lost+found' -czpf "${backupPath}" / 2>/dev/null || true`;
+
+    console.log(`[Backup Manual] Iniciando: ${backupName} em ${backupPath}`);
+
+    const child = exec(cmd, (error, stdout, stderr) => {
+      backupRunning = false;
+      currentBackupPid = null;
+      currentBackupFile = null;
+      backupStartTime = null;
+      if (error) {
+        console.error('[Backup Manual] Erro:', error);
+      } else {
+        console.log('[Backup Manual] Concluído com sucesso:', backupName);
+      }
+    });
+
+    currentBackupPid = child.pid;
+    backupStartTime = Date.now();
+
+    res.json({ success: true, message: 'Backup iniciado com sucesso em segundo plano!', filename: backupName });
+  } catch (error) {
+    backupRunning = false;
+    currentBackupPid = null;
+    currentBackupFile = null;
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: Status do Backup em Andamento
+app.get('/api/backup/status', (req, res) => {
+  let fileSize = 0;
+  if (currentBackupFile && fs.existsSync(currentBackupFile)) {
+    try {
+      const stats = fs.statSync(currentBackupFile);
+      fileSize = stats.size;
+    } catch (e) {}
+  }
+  let elapsedSeconds = 0;
+    let mbps = 0;
+    if (backupStartTime) {
+      elapsedSeconds = Math.max(1, Math.floor((Date.now() - backupStartTime) / 1000));
+      mbps = (fileSize / (1024 * 1024)) / elapsedSeconds;
+    }
+    
+    res.json({
+      success: true,
+      running: backupRunning,
+      filename: currentBackupFile ? path.basename(currentBackupFile) : null,
+      size: fileSize,
+      elapsed_seconds: elapsedSeconds,
+      mbps: Math.round(mbps * 100) / 100
+    });
+});
+
+// API: Cancelar Backup em Andamento
+app.post('/api/backup/cancel', async (req, res) => {
+  if (!backupRunning) {
+    return res.status(400).json({ success: false, error: 'Nenhum backup em andamento para cancelar.' });
+  }
+
+  try {
+    if (currentBackupPid) {
+      try {
+        process.kill(-currentBackupPid, 'SIGKILL');
+      } catch (e) {
+        try {
+          process.kill(currentBackupPid, 'SIGKILL');
+        } catch (err) {}
+      }
+    }
+
+    // Remover arquivo parcial do NAS
+    if (currentBackupFile && fs.existsSync(currentBackupFile)) {
+      try {
+        fs.unlinkSync(currentBackupFile);
+        console.log(`[Backup Manual] Cancelado. Arquivo parcial removido: ${currentBackupFile}`);
+      } catch (e) {
+        console.error('[Backup Manual] Erro ao remover arquivo parcial:', e);
+      }
+    }
+
+    backupRunning = false;
+    currentBackupPid = null;
+    currentBackupFile = null;
+
+    res.json({ success: true, message: 'Backup cancelado e arquivo parcial removido com sucesso.' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: Download de Backup
+app.get('/api/backup/download', (req, res) => {
+  const fileName = req.query.file;
+  if (!fileName || fileName.includes('..') || fileName.includes('/')) {
+    return res.status(400).json({ success: false, error: 'Nome de arquivo inválido.' });
+  }
+
+  const cfg = getBackupConfig();
+  const possibleDirs = [
+    path.join(cfg.mount_point, 'linux-monitor-backups'),
+    cfg.mount_point,
+    path.join(__dirname, 'backups')
+  ];
+
+  let filePath = null;
+  for (const dir of possibleDirs) {
+    const p = path.join(dir, fileName);
+    if (fs.existsSync(p)) {
+      filePath = p;
+      break;
+    }
+  }
+
+  if (!filePath) {
+    return res.status(404).json({ success: false, error: 'Arquivo de backup não encontrado.' });
+  }
+
+  res.download(filePath, fileName);
+});
+
+// API: Excluir Backup do NAS
+app.delete('/api/backup/delete', (req, res) => {
+  const fileName = req.query.file;
+  if (!fileName || fileName.includes('..') || fileName.includes('/')) {
+    return res.status(400).json({ success: false, error: 'Nome de arquivo inválido.' });
+  }
+
+  const cfg = getBackupConfig();
+  const possibleDirs = [
+    path.join(cfg.mount_point, 'linux-monitor-backups'),
+    cfg.mount_point,
+    path.join(__dirname, 'backups')
+  ];
+
+  let filePath = null;
+  for (const dir of possibleDirs) {
+    const p = path.join(dir, fileName);
+    if (fs.existsSync(p)) {
+      filePath = p;
+      break;
+    }
+  }
+
+  if (!filePath) {
+    return res.status(404).json({ success: false, error: 'Arquivo de backup não encontrado.' });
+  }
+
+  try {
+    fs.unlinkSync(filePath);
+    res.json({ success: true, message: `Backup ${fileName} excluído com sucesso do NAS.` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Falha ao excluir arquivo: ' + error.message });
+  }
+});
+
+// ==================== BACKUP SCHEDULER ====================
+function loadSchedules() {
+  try {
+    if (fs.existsSync(SCHEDULE_PATH)) {
+      backupSchedules = JSON.parse(fs.readFileSync(SCHEDULE_PATH, 'utf8'));
+    }
+  } catch (e) {
+    backupSchedules = [];
+  }
+}
+
+function saveSchedules() {
+  fs.writeFileSync(SCHEDULE_PATH, JSON.stringify(backupSchedules, null, 2));
+}
+
+function parseCronSimple(expr) {
+  const parts = expr.split(',');
+  return {
+    dayOfWeek: parts[0],
+    hour: parseInt(parts[1], 10),
+    minute: parseInt(parts[2], 10)
+  };
+}
+
+function shouldRunSchedule(sched, now) {
+  if (!sched.enabled) return false;
+  const cron = parseCronSimple(sched.cronExpression);
+  const nowDay = now.getDay();
+  const nowHour = now.getHours();
+  const nowMinute = now.getMinutes();
+  const dayMatch = (cron.dayOfWeek === '*' || String(nowDay) === cron.dayOfWeek);
+  const hourMatch = cron.hour === nowHour;
+  const minuteMatch = cron.minute === nowMinute;
+  return dayMatch && hourMatch && minuteMatch;
+}
+
+function runScheduledBackup(sched) {
+  if (backupRunning) {
+    console.log(`[Scheduled Backup] Ignorado (${sched.name}): outro backup em andamento.`);
+    return;
+  }
+  backupRunning = true;
+
+  const cfg = getBackupConfig();
+  const backupDir = path.join(cfg.mount_point, 'linux-monitor-backups');
+  let targetDir = backupDir;
+  if (!fs.existsSync(targetDir)) {
+    try {
+      fs.mkdirSync(targetDir, { recursive: true });
+    } catch (e) {
+      targetDir = path.join(__dirname, 'backups');
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+    }
+  }
+
+  si.osInfo().then(osInfo => {
+    const hostname = osInfo.hostname || 'linux-server';
+    const distro = (osInfo.distro || 'linux').toLowerCase().replace(/\s+/g, '-');
+    const release = (osInfo.release || 'unknown').toLowerCase().replace(/\s+/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupName = `${hostname}-${distro}-${release}-${timestamp}.tar.gz`;
+    const backupPath = path.join(targetDir, backupName);
+    const cmd = `tar --exclude='/dev/*' --exclude='/proc/*' --exclude='/sys/*' --exclude='/tmp/*' --exclude='/run/*' --exclude='/mnt/*' --exclude='/media/*' --exclude='/lost+found' -czpf "${backupPath}" / 2>/dev/null || true`;
+
+    sched.lastRun = new Date().toISOString();
+    saveSchedules();
+
+    console.log(`[Scheduled Backup] Iniciando: ${sched.name} -> ${backupName}`);
+
+    exec(cmd, (error, stdout, stderr) => {
+      backupRunning = false;
+      if (error) {
+        console.error(`[Scheduled Backup] Erro em ${sched.name}:`, error);
+      } else {
+        console.log(`[Scheduled Backup] Concluído: ${backupName}`);
+      }
+      sched.lastRun = new Date().toISOString();
+      saveSchedules();
+    });
+  }).catch(() => {
+    backupRunning = false;
+  });
+}
+
+function startScheduleChecker() {
+  if (scheduleInterval) clearInterval(scheduleInterval);
+  scheduleInterval = setInterval(() => {
+    const now = new Date();
+    if (now.getSeconds() === 0) {
+      backupSchedules.forEach(sched => {
+        if (shouldRunSchedule(sched, now)) {
+          runScheduledBackup(sched);
+        }
+      });
+    }
+  }, 1000);
+}
+
+loadSchedules();
+startScheduleChecker();
+
+// API: Listar agendamentos
+app.get('/api/backup/schedule', (req, res) => {
+  res.json({ success: true, schedules: backupSchedules });
+});
+
+// API: Adicionar/editar agendamento
+app.post('/api/backup/schedule', (req, res) => {
+  try {
+    const { id, name, cronExpression, enabled } = req.body;
+    if (!name || !cronExpression) {
+      return res.status(400).json({ success: false, error: 'Nome e expressão cron são obrigatórios' });
+    }
+    const scheduleObj = {
+      id: id || Date.now().toString(),
+      name,
+      cronExpression,
+      enabled: enabled !== false,
+      createdAt: new Date().toISOString(),
+      lastRun: null
+    };
+    const idx = backupSchedules.findIndex(s => s.id === scheduleObj.id);
+    if (idx >= 0) {
+      backupSchedules[idx] = scheduleObj;
+    } else {
+      backupSchedules.push(scheduleObj);
+    }
+    saveSchedules();
+    startScheduleChecker();
+    res.json({ success: true, schedules: backupSchedules });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// API: Remover agendamento
+app.delete('/api/backup/schedule/:id', (req, res) => {
+  try {
+    backupSchedules = backupSchedules.filter(s => s.id !== req.params.id);
+    saveSchedules();
+    startScheduleChecker();
+    res.json({ success: true, schedules: backupSchedules });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// API: Toggle habilitar/desabilitar agendamento
+app.post('/api/backup/schedule/:id/toggle', (req, res) => {
+  try {
+    const sched = backupSchedules.find(s => s.id === req.params.id);
+    if (!sched) return res.status(404).json({ success: false, error: 'Agendamento não encontrado' });
+    sched.enabled = !sched.enabled;
+    saveSchedules();
+    startScheduleChecker();
+    res.json({ success: true, schedules: backupSchedules });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Linux-monitor rodando na porta ${PORT}`);
 });
