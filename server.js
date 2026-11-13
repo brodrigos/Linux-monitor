@@ -511,6 +511,7 @@ let backupRunning = false;
 let currentBackupPid = null;
 let currentBackupFile = null;
 let backupStartTime = null;
+let currentBackupScheduleId = null;
 
 function getBackupConfig() {
   const mountPoint = process.env.BACKUP_MOUNT || '/mnt/synology_backup';
@@ -678,6 +679,7 @@ app.post('/api/backup/start', async (req, res) => {
       currentBackupPid = null;
       currentBackupFile = null;
       backupStartTime = null;
+      currentBackupScheduleId = null;
       if (error) {
         console.error('[Backup Manual] Erro:', error);
       } else {
@@ -687,12 +689,15 @@ app.post('/api/backup/start', async (req, res) => {
 
     currentBackupPid = child.pid;
     backupStartTime = Date.now();
+    currentBackupScheduleId = req.body?.scheduleId || null;
 
     res.json({ success: true, message: 'Backup iniciado com sucesso em segundo plano!', filename: backupName });
   } catch (error) {
     backupRunning = false;
     currentBackupPid = null;
     currentBackupFile = null;
+    backupStartTime = null;
+    currentBackupScheduleId = null;
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -719,7 +724,8 @@ app.get('/api/backup/status', (req, res) => {
       filename: currentBackupFile ? path.basename(currentBackupFile) : null,
       size: fileSize,
       elapsed_seconds: elapsedSeconds,
-      mbps: Math.round(mbps * 100) / 100
+      mbps: Math.round(mbps * 100) / 100,
+      scheduleId: currentBackupScheduleId
     });
 });
 
@@ -867,6 +873,8 @@ function runScheduledBackup(sched) {
     return;
   }
   backupRunning = true;
+  currentBackupScheduleId = sched.id;
+  backupStartTime = Date.now();
 
   const cfg = getBackupConfig();
   const backupDir = path.join(cfg.mount_point, 'linux-monitor-backups');
@@ -883,12 +891,34 @@ function runScheduledBackup(sched) {
   }
 
   si.osInfo().then(osInfo => {
-    const hostname = osInfo.hostname || 'linux-server';
-    const distro = (osInfo.distro || 'linux').toLowerCase().replace(/\s+/g, '-');
-    const release = (osInfo.release || 'unknown').toLowerCase().replace(/\s+/g, '-');
+    let hostname = osInfo.hostname || 'linux-server';
+    if (hostname === 'linux-server') {
+        try { hostname = fs.readFileSync('/etc/hostname', 'utf8').trim(); } catch (e) {}
+    }
+    hostname = hostname.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'linux-server';
+    
+    let distro = (osInfo.distro || 'linux').toLowerCase().replace(/[^a-z0-9]/g, '-');
+    if (!distro || distro === 'linux') {
+        try {
+            const osRelease = fs.readFileSync('/etc/os-release', 'utf8');
+            const idMatch = osRelease.match(/^ID=(.+)$/m);
+            if (idMatch) distro = idMatch[1].replace(/["']/g, '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+        } catch (e) {}
+    }
+    
+    let release = (osInfo.release || 'unknown').toLowerCase().replace(/[^a-z0-9.-]/g, '-');
+    if (!release || release === 'unknown') {
+        try {
+            const osRelease = fs.readFileSync('/etc/os-release', 'utf8');
+            const versionMatch = osRelease.match(/^VERSION=(.+)$/m);
+            if (versionMatch) release = versionMatch[1].replace(/["']/g, '').toLowerCase().replace(/[^a-z0-9.-]/g, '-');
+        } catch (e) {}
+    }
+    
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupName = `${hostname}-${distro}-${release}-${timestamp}.tar.gz`;
     const backupPath = path.join(targetDir, backupName);
+    currentBackupFile = backupPath;
     const cmd = `tar --exclude='/dev/*' --exclude='/proc/*' --exclude='/sys/*' --exclude='/tmp/*' --exclude='/run/*' --exclude='/mnt/*' --exclude='/media/*' --exclude='/lost+found' -czpf "${backupPath}" / 2>/dev/null || true`;
 
     sched.lastRun = new Date().toISOString();
@@ -896,8 +926,12 @@ function runScheduledBackup(sched) {
 
     console.log(`[Scheduled Backup] Iniciando: ${sched.name} -> ${backupName}`);
 
-    exec(cmd, (error, stdout, stderr) => {
+    const child = exec(cmd, (error, stdout, stderr) => {
       backupRunning = false;
+      currentBackupPid = null;
+      currentBackupFile = null;
+      backupStartTime = null;
+      currentBackupScheduleId = null;
       if (error) {
         console.error(`[Scheduled Backup] Erro em ${sched.name}:`, error);
       } else {
@@ -906,8 +940,14 @@ function runScheduledBackup(sched) {
       sched.lastRun = new Date().toISOString();
       saveSchedules();
     });
+    
+    currentBackupPid = child.pid;
   }).catch(() => {
     backupRunning = false;
+    currentBackupPid = null;
+    currentBackupFile = null;
+    backupStartTime = null;
+    currentBackupScheduleId = null;
   });
 }
 

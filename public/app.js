@@ -644,15 +644,24 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBar.style.width = percent + '%';
         statusText.textContent = `Compactando sistema... (${percent}%)`;
         rateText.textContent += ` · ETA: ${etaMin.toString().padStart(2,'0')}:${etaSec.toString().padStart(2,'0')}`;
-      } else {
-        if (backupPollInterval) {
-          clearInterval(backupPollInterval);
-          backupPollInterval = null;
+        
+        if (data.scheduleId) {
+            const schedCell = document.getElementById(`sched-progress-${data.scheduleId}`);
+            if (schedCell) schedCell.innerHTML = `<div style="display: flex; align-items: center; gap: 0.5rem;"><div style="width: 80px; height: 8px; background: var(--bg-primary); border-radius: 4px; overflow: hidden;"><div style="width: ${percent}%; height: 100%; background: var(--accent-cyan);"></div></div><span style="font-size: 0.85rem;">${percent}%</span></div>`;
         }
+      } else {
+        const wasRunning = progressContainer.style.display === 'block';
         progressContainer.style.display = 'none';
         startBtn.style.display = 'inline-block';
         cancelBtn.style.display = 'none';
-        loadBackupList();
+        
+        // Limpar qualquer progresso de agendamento na tabela
+        document.querySelectorAll('[id^="sched-progress-"]').forEach(el => el.textContent = '—');
+        
+        if (wasRunning) {
+            loadBackupList();
+            loadSchedules();
+        }
       }
     } catch (e) {}
   }
@@ -724,13 +733,13 @@ document.addEventListener('DOMContentLoaded', () => {
   window.loadSchedules = async function() {
     const tbody = document.getElementById('schedules-tbody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Carregando agendamentos...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Carregando agendamentos...</td></tr>';
     try {
       const res = await fetch('/api/backup/schedule');
       const data = await res.json();
       if (data.success && data.schedules) {
         if (data.schedules.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Nenhum agendamento configurado.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Nenhum agendamento configurado.</td></tr>';
           return;
         }
         tbody.innerHTML = data.schedules.map(s => {
@@ -738,10 +747,11 @@ document.addEventListener('DOMContentLoaded', () => {
           const dowLabel = parts[0] === '*' ? 'Todo dia' : (['Dom','Seg','Ter','Qua','Qui','Sex','Sab'][parseInt(parts[0])] || '?');
           const cronLabel = `${dowLabel} às ${String(parts[1]).padStart(2,'0')}:${String(parts[2]).padStart(2,'0')}`;
           return `
-            <tr>
+            <tr id="sched-row-${s.id}">
               <td><strong>${s.name}</strong></td>
               <td>${cronLabel}</td>
-              <td><span class="badge-status ${s.enabled ? 'active' : 'inactive'}">${s.enabled ? 'Ativo' : 'Inativo'}</span></td>
+              <td class="sched-status-cell"><span class="badge-status ${s.enabled ? 'active' : 'inactive'}">${s.enabled ? 'Ativo' : 'Inativo'}</span></td>
+              <td id="sched-progress-${s.id}">—</td>
               <td>${s.lastRun ? new Date(s.lastRun).toLocaleString() : '—'}</td>
               <td>
                 <button class="btn" onclick="toggleSchedule('${s.id}', ${!s.enabled})">${s.enabled ? 'Pausar' : 'Ativar'}</button>
@@ -752,7 +762,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
       }
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--accent-red);">Erro: ${err.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--accent-red);">Erro: ${err.message}</td></tr>`;
     }
   };
 
@@ -814,4 +824,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadDestinations();
   checkBackupStatus();
   loadSchedules();
+  
+  // Polling persistente (3s) para refletir backups agendados que iniciarem em segundo plano
+  if (!backupPollInterval) {
+    backupPollInterval = setInterval(checkBackupStatus, 3000);
+  }
 });

@@ -92,6 +92,7 @@ Distribuído sob a licença MIT. Desenvolvido por [Brodrigos](https://github.com
 - **Seleção de Destino de Backup**: Dropdown para escolher onde o backup será gravado (NAS Synology, partições locais ou diretório customizado) via novo endpoint `GET /api/backup/destinations`.
 - **Nome de Arquivo Aprimorado**: Nomenclatura agora usa hostname real (ex: `rodrigo-Lava`), distro detectada via `/etc/os-release` e versão do sistema, eliminando valores genéricos como `linux-unknown`.
 - **Interface de Agendamento Restaurada**: UI completa de agendamento de backups automáticos (nome, dia da semana, hora, minuto, ativar/pausar/excluir) integrada com backend `/api/backup/schedule`.
+- **Coluna de Progresso no Agendamento**: Cada linha da tabela de agendamentos exibe o percentual de conclusão em tempo real (barra mini + porcentagem) quando um backup agendado está em execução, via `scheduleId` retornado em `GET /api/backup/status`.
 - **Taxa de Transferência (MB/s)**: Cálculo em tempo real da velocidade de gravação baseado no tamanho do arquivo e tempo decorrido desde o início do backup.
 
 ### 🖥️ v1.2.0 (Versão Anterior) — Reestruturação Visual Estilo Desktop Modular
