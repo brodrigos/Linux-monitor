@@ -292,6 +292,70 @@
               </tbody>
             </table>
           </div>
+
+          <!-- Agendamento de Backups Automáticos -->
+          <div class="card" style="margin-top: 1.5rem;">
+            <div class="card-header">
+              <h2>⏰ Agendamento de Backups Automáticos</h2>
+            </div>
+            <div style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-muted);">
+              Configure backups automáticos para rodar nos dias e horários que você escolher. O sistema executará o backup mesmo se você estiver usando o servidor.
+            </div>
+            <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: end;">
+              <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 140px;">
+                <label style="font-size: 0.85rem; font-weight: 600;">Nome:</label>
+                <input type="text" id="sched-name" placeholder="Ex: Backup Noturno" style="padding: 0.5rem; font-size: 0.9rem;">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 120px;">
+                <label style="font-size: 0.85rem; font-weight: 600;">Dia da semana:</label>
+                <select id="sched-dow" style="padding: 0.5rem; font-size: 0.9rem;">
+                  <option value="*">Todo dia</option>
+                  <option value="1">Segunda</option>
+                  <option value="2">Terça</option>
+                  <option value="3">Quarta</option>
+                  <option value="4">Quinta</option>
+                  <option value="5">Sexta</option>
+                  <option value="6">Sábado</option>
+                  <option value="0">Domingo</option>
+                </select>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 100px;">
+                <label style="font-size: 0.85rem; font-weight: 600;">Hora:</label>
+                <select id="sched-hour" style="padding: 0.5rem; font-size: 0.9rem;">
+                  <option value="0">00h</option><option value="1">01h</option><option value="2">02h</option><option value="3">03h</option>
+                  <option value="4">04h</option><option value="5">05h</option><option value="6">06h</option><option value="7">07h</option>
+                  <option value="8">08h</option><option value="9">09h</option><option value="10">10h</option><option value="11">11h</option>
+                  <option value="12">12h</option><option value="13">13h</option><option value="14">14h</option><option value="15">15h</option>
+                  <option value="16">16h</option><option value="17">17h</option><option value="18">18h</option><option value="19">19h</option>
+                  <option value="20">20h</option><option value="21">21h</option><option value="22">22h</option><option value="23">23h</option>
+                </select>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 100px;">
+                <label style="font-size: 0.85rem; font-weight: 600;">Minuto:</label>
+                <select id="sched-minute" style="padding: 0.5rem; font-size: 0.9rem;">
+                  <option value="0">:00</option><option value="15">:15</option><option value="30">:30</option><option value="45">:45</option>
+                </select>
+              </div>
+              <button class="btn" style="background: var(--accent-green); padding: 0.5rem 1.5rem; font-size: 0.95rem;" onclick="addSchedule()">➕ Adicionar Agendamento</button>
+            </div>
+            <h3 style="font-size: 1.05rem; margin-bottom: 0.75rem; color: var(--text-main);">📋 Agendamentos Configurados:</h3>
+            <div class="table-container" style="max-height: 300px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Cron</th>
+                    <th>Status</th>
+                    <th>Última Execução</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="schedules-tbody">
+                  <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Nenhum agendamento configurado.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>

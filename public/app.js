@@ -720,7 +720,98 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // Inicializar destinos e status ao carregar o módulo
+  // --- Backup Scheduler Logic ---
+  window.loadSchedules = async function() {
+    const tbody = document.getElementById('schedules-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Carregando agendamentos...</td></tr>';
+    try {
+      const res = await fetch('/api/backup/schedule');
+      const data = await res.json();
+      if (data.success && data.schedules) {
+        if (data.schedules.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Nenhum agendamento configurado.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.schedules.map(s => {
+          const parts = s.cronExpression.split(',');
+          const dowLabel = parts[0] === '*' ? 'Todo dia' : (['Dom','Seg','Ter','Qua','Qui','Sex','Sab'][parseInt(parts[0])] || '?');
+          const cronLabel = `${dowLabel} às ${String(parts[1]).padStart(2,'0')}:${String(parts[2]).padStart(2,'0')}`;
+          return `
+            <tr>
+              <td><strong>${s.name}</strong></td>
+              <td>${cronLabel}</td>
+              <td><span class="badge-status ${s.enabled ? 'active' : 'inactive'}">${s.enabled ? 'Ativo' : 'Inativo'}</span></td>
+              <td>${s.lastRun ? new Date(s.lastRun).toLocaleString() : '—'}</td>
+              <td>
+                <button class="btn" onclick="toggleSchedule('${s.id}', ${!s.enabled})">${s.enabled ? 'Pausar' : 'Ativar'}</button>
+                <button class="btn danger" onclick="deleteSchedule('${s.id}')">Excluir</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--accent-red);">Erro: ${err.message}</td></tr>`;
+    }
+  };
+
+  window.addSchedule = async function() {
+    const name = document.getElementById('sched-name').value.trim();
+    const dow = document.getElementById('sched-dow').value;
+    const hour = document.getElementById('sched-hour').value;
+    const minute = document.getElementById('sched-minute').value;
+    if (!name) { alert('Informe um nome para o agendamento.'); return; }
+    try {
+      const res = await fetch('/api/backup/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, cronExpression: `${dow},${hour},${minute}` })
+      });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('sched-name').value = '';
+        loadSchedules();
+        alert('Agendamento adicionado com sucesso!');
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    } catch (err) {
+      alert('Erro ao adicionar agendamento: ' + err.message);
+    }
+  };
+
+  window.toggleSchedule = async function(id, enabled) {
+    try {
+      const res = await fetch(`/api/backup/schedule/${id}/toggle`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        loadSchedules();
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    } catch (err) {
+      alert('Erro ao alternar agendamento: ' + err.message);
+    }
+  };
+
+  window.deleteSchedule = async function(id) {
+    if (!confirm('Deseja realmente excluir este agendamento?')) return;
+    try {
+      const res = await fetch(`/api/backup/schedule/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        loadSchedules();
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    } catch (err) {
+      alert('Erro ao excluir agendamento: ' + err.message);
+    }
+  };
+
+  // Inicializar destinos, status e agendamentos ao carregar o módulo
   loadDestinations();
   checkBackupStatus();
+  loadSchedules();
 });
