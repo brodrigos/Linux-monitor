@@ -84,5 +84,5 @@ function initSSHWebSocket(server) {
   return wss;
 }
 
-module.exports = initSSHWebSocket;
+module.exports = { initSSHWebSocket };
 // === END REMOTE ACCESS ===
