@@ -509,3 +509,99 @@ tr:hover td {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==================== Remote Access Module Styles ==================== */
+.remote-status-item {
+  background: rgba(15, 23, 42, 0.4);
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.remote-status-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.remote-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent-yellow);
+  box-shadow: 0 0 8px var(--accent-yellow);
+  align-self: flex-start;
+}
+
+.remote-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 0;
+}
+
+.remote-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.remote-tab:hover {
+  color: var(--text-main);
+  background: rgba(6, 182, 212, 0.1);
+}
+
+.remote-tab.active {
+  color: var(--accent-cyan);
+  border-bottom-color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.08);
+}
+
+.remote-tab-content {
+  min-height: 200px;
+}
+
+#ssh-terminal {
+  font-family: 'Courier New', 'DejaVu Sans Mono', monospace;
+  font-size: 14px;
+  line-height: 1.4;
+  padding: 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  min-height: 350px;
+  max-height: 500px;
+  overflow-y: auto;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+#ssh-terminal::-webkit-scrollbar {
+  width: 8px;
+}
+
+#ssh-terminal::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+  border-radius: 4px;
+}
+
+#ssh-terminal::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+#ssh-terminal::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

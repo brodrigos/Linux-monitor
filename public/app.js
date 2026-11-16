@@ -28,8 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (moduleId === 'backup-module') {
         loadBackupList();
         loadDestinations();
+      } else if (moduleId === 'remote-access-module') {
+        loadRemoteAccessStatus();
       }
-    }
   };
 
   // Formatting helpers
@@ -829,4 +830,187 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!backupPollInterval) {
     backupPollInterval = setInterval(checkBackupStatus, 3000);
   }
+
+  // ==================== REMOTE ACCESS MODULE ====================
+
+  // Remote tab switching
+  window.switchRemoteTab = function(tab) {
+    document.querySelectorAll('.remote-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.remote-tab-content').forEach(c => c.style.display = 'none');
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('remote-tab-' + tab).style.display = 'block';
+
+    if (tab === 'vnc') {
+      const iframe = document.getElementById('vnc-iframe');
+      if (iframe && iframe.getAttribute('data-loaded') === 'true') {
+        // already loaded
+      }
+    }
+  };
+
+  // Load remote access service status
+  window.loadRemoteAccessStatus = async function() {
+    try {
+      const res = await fetch('/api/remote-access/status');
+      const data = await res.json();
+      if (data.success && data.services) {
+        updateRemoteStatus('ssh', data.services.ssh);
+        updateRemoteStatus('xrdp', data.services.xrdp);
+        updateRemoteStatus('vnc', data.services.vnc);
+        updateRemoteStatus('novnc', data.services.novnc);
+      }
+    } catch (e) {
+      console.error('Erro ao carregar status de acesso remoto:', e);
+    }
+  };
+
+  function updateRemoteStatus(service, data) {
+    const dot = document.getElementById('status-' + service);
+    const text = document.getElementById('status-' + service + '-text');
+    if (!dot || !text) return;
+
+    if (data.running === true) {
+      dot.style.background = 'var(--accent-green)';
+      dot.style.boxShadow = '0 0 8px var(--accent-green)';
+      text.textContent = 'Rodando';
+      text.style.color = 'var(--accent-green)';
+    } else if (data.running === false || (data.installed === false)) {
+      dot.style.background = 'var(--accent-red)';
+      dot.style.boxShadow = '0 0 8px var(--accent-red)';
+      text.textContent = data.installed === false ? 'Não instalado' : 'Parado';
+      text.style.color = 'var(--accent-red)';
+    } else {
+      dot.style.background = 'var(--accent-yellow)';
+      dot.style.boxShadow = '0 0 8px var(--accent-yellow)';
+      text.textContent = 'Verificando...';
+      text.style.color = 'var(--accent-yellow)';
+    }
+  }
+
+  // Control remote services (xrdp, vnc, novnc)
+  window.controlRemoteService = async function(service, action) {
+    if (!confirm(`Deseja ${action} o serviço ${service}?`)) return;
+    try {
+      const res = await fetch(`/api/remote-access/${service}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || 'Serviço controlado com sucesso.');
+        loadRemoteAccessStatus();
+      } else {
+        alert('Erro: ' + (data.error || 'Falha ao controlar serviço'));
+      }
+    } catch (err) {
+      alert('Erro na requisição: ' + err.message);
+    }
+  };
+
+  // SSH WebSocket Terminal
+  let sshWs = null;
+  let sshConnected = false;
+
+  window.connectSSH = async function() {
+    if (sshConnected) {
+      alert('Já conectado ao terminal SSH.');
+      return;
+    }
+
+    const host = document.getElementById('ssh-host').value.trim();
+    const port = document.getElementById('ssh-port').value.trim();
+    const user = document.getElementById('ssh-user').value.trim();
+    const pass = document.getElementById('ssh-pass').value;
+
+    if (!host || !user) {
+      alert('Host e Usuário são obrigatórios.');
+      return;
+    }
+
+    const termEl = document.getElementById('ssh-terminal');
+    termEl.textContent = '';
+    appendSSHTerm(`Conectando a ${user}@${host}:${port}...`);
+
+    try {
+      const wsUrl = `ws://${window.location.host}/ws/ssh?host=${encodeURIComponent(host)}&port=${encodeURIComponent(port)}&username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}`;
+      sshWs = new WebSocket(wsUrl);
+
+      sshWs.onopen = function() {
+        sshConnected = true;
+        appendSSHTerm('✅ Conectado ao terminal SSH!\n');
+        document.getElementById('ssh-connection-form').style.display = 'none';
+        document.getElementById('ssh-terminal-container').style.display = 'block';
+        document.getElementById('ssh-disconnect-btn').style.display = 'inline-block';
+      };
+
+      sshWs.onmessage = function(event) {
+        appendSSHTerm(event.data);
+      };
+
+      sshWs.onerror = function(error) {
+        appendSSHTerm('\n❌ Erro de conexão. Verifique as credenciais e tente novamente.\n');
+        console.error('SSH WS Error:', error);
+      };
+
+      sshWs.onclose = function(event) {
+        sshConnected = false;
+        appendSSHTerm('\n📴 Conexão fechada.\n');
+        document.getElementById('ssh-connection-form').style.display = 'block';
+        document.getElementById('ssh-terminal-container').style.display = 'none';
+        document.getElementById('ssh-disconnect-btn').style.display = 'none';
+      };
+
+      // Focus terminal on click
+      termEl.addEventListener('click', function() {
+        // Terminal input handled via overlay textarea
+      });
+
+    } catch (err) {
+      appendSSHTerm('❌ Erro ao iniciar conexão: ' + err.message + '\n');
+    }
+  };
+
+  function appendSSHTerm(text) {
+    const termEl = document.getElementById('ssh-terminal');
+    termEl.textContent += text;
+    termEl.scrollTop = termEl.scrollHeight;
+  }
+
+  window.disconnectSSH = function() {
+    if (sshWs) {
+      sshWs.close();
+      sshWs = null;
+    }
+    sshConnected = false;
+    document.getElementById('ssh-connection-form').style.display = 'block';
+    document.getElementById('ssh-terminal-container').style.display = 'none';
+    document.getElementById('ssh-disconnect-btn').style.display = 'none';
+    appendSSHTerm('📴 Desconectado pelo usuário.\n');
+  };
+
+  // VNC iframe
+  window.loadVNC = function() {
+    const vncUrl = document.getElementById('vnc-url').value.trim();
+    const iframe = document.getElementById('vnc-iframe');
+    const placeholder = document.getElementById('vnc-placeholder');
+
+    if (!vncUrl) {
+      alert('Informe uma URL do noVNC.');
+      return;
+    }
+
+    iframe.src = vncUrl;
+    iframe.style.display = 'block';
+    placeholder.style.display = 'none';
+    iframe.setAttribute('data-loaded', 'true');
+  };
+
+  window.openVNCTab = function() {
+    let vncUrl = document.getElementById('vnc-url').value.trim();
+    if (!vncUrl) {
+      vncUrl = 'http://localhost:6080/vnc.html';
+    }
+    window.open(vncUrl, '_blank');
+  };
 });

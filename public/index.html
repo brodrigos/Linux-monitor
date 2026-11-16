@@ -65,6 +65,13 @@
           <div class="icon-label">Backup & NAS</div>
           <div class="icon-desc">Imagem de Disco & Agendamentos</div>
         </div>
+
+        <!-- Icon 5: Acesso Remoto -->
+        <div class="desktop-icon" onclick="openModule('remote-access-module')">
+          <div class="icon-symbol">🌐</div>
+          <div class="icon-label">Acesso Remoto</div>
+          <div class="icon-desc">Terminal SSH & VNC noVNC</div>
+        </div>
       </div>
     </div>
 
@@ -355,6 +362,170 @@
                   <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Nenhum agendamento configurado.</td></tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODULE 5: REMOTE ACCESS -->
+    <div id="remote-access-module" class="view-section module-window">
+      <div class="module-header-bar">
+        <h2>🌐 Acesso Remoto (SSH & VNC)</h2>
+        <button class="btn danger" onclick="showDesktop()">✕ Fechar / Voltar ao Desktop</button>
+      </div>
+      <div class="module-body">
+        <!-- Service Status Panel -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+          <div class="card-header">
+            <h2>📡 Status dos Serviços de Acesso Remoto</h2>
+            <button class="btn" onclick="loadRemoteAccessStatus()">🔄 Atualizar</button>
+          </div>
+          <div id="remote-services-status" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <div class="remote-status-item" style="flex: 1; min-width: 150px;">
+              <div class="remote-status-label">🔑 SSH</div>
+              <div class="remote-status-dot" id="status-ssh"></div>
+              <span id="status-ssh-text" style="font-size: 0.85rem; color: var(--text-muted);">Verificando...</span>
+            </div>
+            <div class="remote-status-item" style="flex: 1; min-width: 150px;">
+              <div class="remote-status-label">🖥️ XRDP</div>
+              <div class="remote-status-dot" id="status-xrdp"></div>
+              <span id="status-xrdp-text" style="font-size: 0.85rem; color: var(--text-muted);">Verificando...</span>
+            </div>
+            <div class="remote-status-item" style="flex: 1; min-width: 150px;">
+              <div class="remote-status-label">📺 VNC (x11vnc)</div>
+              <div class="remote-status-dot" id="status-vnc"></div>
+              <span id="status-vnc-text" style="font-size: 0.85rem; color: var(--text-muted);">Verificando...</span>
+            </div>
+            <div class="remote-status-item" style="flex: 1; min-width: 150px;">
+              <div class="remote-status-label">🔀 noVNC (websockify)</div>
+              <div class="remote-status-dot" id="status-novnc"></div>
+              <span id="status-novnc-text" style="font-size: 0.85rem; color: var(--text-muted);">Verificando...</span>
+            </div>
+          </div>
+          <!-- Service Controls -->
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <span style="font-size: 0.85rem; color: var(--text-muted);">XRDP:</span>
+              <button class="btn" style="background: var(--accent-green);" onclick="controlRemoteService('xrdp', 'start')">Iniciar</button>
+              <button class="btn danger" onclick="controlRemoteService('xrdp', 'stop')">Parar</button>
+              <button class="btn" onclick="controlRemoteService('xrdp', 'restart')">Reiniciar</button>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <span style="font-size: 0.85rem; color: var(--text-muted);">VNC:</span>
+              <button class="btn" style="background: var(--accent-green);" onclick="controlRemoteService('vnc', 'start')">Iniciar</button>
+              <button class="btn danger" onclick="controlRemoteService('vnc', 'stop')">Parar</button>
+              <button class="btn" onclick="controlRemoteService('vnc', 'restart')">Reiniciar</button>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <span style="font-size: 0.85rem; color: var(--text-muted);">noVNC:</span>
+              <button class="btn" style="background: var(--accent-green);" onclick="controlRemoteService('novnc', 'start')">Iniciar</button>
+              <button class="btn danger" onclick="controlRemoteService('novnc', 'stop')">Parar</button>
+              <button class="btn" onclick="controlRemoteService('novnc', 'restart')">Reiniciar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="remote-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0;">
+          <button class="remote-tab active" id="tab-ssh" onclick="switchRemoteTab('ssh')">🔑 Terminal SSH</button>
+          <button class="remote-tab" id="tab-vnc" onclick="switchRemoteTab('vnc')">📺 noVNC (VNC Web)</button>
+          <button class="remote-tab" id="tab-info" onclick="switchRemoteTab('info')">ℹ️ Instruções</button>
+        </div>
+
+        <!-- SSH Terminal Tab -->
+        <div id="remote-tab-ssh" class="remote-tab-content">
+          <div class="card">
+            <!-- SSH Connection Form -->
+            <div id="ssh-connection-form" style="margin-bottom: 1rem;">
+              <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: end;">
+                <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                  <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Host</label>
+                  <input type="text" id="ssh-host" value="192.168.1.101" style="padding: 0.5rem; font-size: 0.9rem; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; min-width: 160px;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                  <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Porta</label>
+                  <input type="text" id="ssh-port" value="22" style="padding: 0.5rem; font-size: 0.9rem; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; width: 80px;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                  <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Usuário</label>
+                  <input type="text" id="ssh-user" value="rodrigo" style="padding: 0.5rem; font-size: 0.9rem; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; min-width: 140px;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                  <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Senha</label>
+                  <input type="password" id="ssh-pass" value="ro2601bs" style="padding: 0.5rem; font-size: 0.9rem; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; min-width: 140px;">
+                </div>
+                <button class="btn" style="background: var(--accent-green); font-weight: 700; padding: 0.5rem 1.5rem;" onclick="connectSSH()">⚡ Conectar</button>
+                <button class="btn danger" id="ssh-disconnect-btn" style="display: none;" onclick="disconnectSSH()">✕ Desconectar</button>
+              </div>
+            </div>
+            <!-- Terminal Container -->
+            <div id="ssh-terminal-container" style="display: none;">
+              <div id="ssh-terminal" style="background: #000; color: #0f0; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.4; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color); min-height: 350px; max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VNC Tab -->
+        <div id="remote-tab-vnc" class="remote-tab-content" style="display: none;">
+          <div class="card">
+            <div style="margin-bottom: 1rem;">
+              <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+                O noVNC permite acesso gráfico completo ao servidor através do navegador. 
+                Requer que o serviço noVNC/websockify esteja rodando (veja controles acima).
+              </p>
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                <input type="text" id="vnc-url" value="http://localhost:6080/vnc.html" style="flex: 1; padding: 0.5rem; font-size: 0.9rem; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px;">
+                <button class="btn" onclick="loadVNC()">🔄 Carregar</button>
+                <button class="btn" style="background: var(--accent-purple);" onclick="openVNCTab()">↗️ Abrir em Nova Aba</button>
+              </div>
+            </div>
+            <div id="vnc-iframe-container" style="border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; height: 550px; background: var(--bg-primary);">
+              <div id="vnc-placeholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 1.1rem;">
+                <div style="text-align: center;">
+                  <div style="font-size: 3rem; margin-bottom: 1rem;">📺</div>
+                  <p>Clique em "Carregar" para abrir o noVNC</p>
+                  <p style="font-size: 0.8rem; margin-top: 0.5rem;">ou abra em nova aba</p>
+                </div>
+              </div>
+              <iframe id="vnc-iframe" style="display: none; width: 100%; height: 100%; border: none;" src=""></iframe>
+            </div>
+          </div>
+        </div>
+
+        <!-- Info Tab -->
+        <div id="remote-tab-info" class="remote-tab-content" style="display: none;">
+          <div class="card">
+            <h3 style="color: var(--accent-cyan); margin-bottom: 1rem;">📋 Informações de Conexão</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="label">Terminal SSH (WebSocket)</div>
+                <div class="val" style="font-size: 0.85rem;">Use a aba Terminal SSH acima para acesso via terminal de linha de comando.</div>
+              </div>
+              <div class="info-item">
+                <div class="label">XRDP (Desktop Remoto)</div>
+                <div class="val" style="font-size: 0.85rem;">
+                  <code style="background: var(--bg-primary); padding: 0.2rem 0.4rem; border-radius: 3px;">xrdp: 192.168.1.101:3389</code>
+                  <br>Use Remmina ou Vinagre no Linux, ou Microsoft Remote Desktop no Windows/Mac.
+                </div>
+              </div>
+              <div class="info-item">
+                <div class="label">VNC (x11vnc)</div>
+                <div class="val" style="font-size: 0.85rem;">
+                  <code style="background: var(--bg-primary); padding: 0.2rem 0.4rem; border-radius: 3px;">VNC: 192.168.1.101:5900</code>
+                  <br>Sem senha configurada (-nopw). Use qualquer cliente VNC.
+                </div>
+              </div>
+              <div class="info-item">
+                <div class="label">noVNC (Web)</div>
+                <div class="val" style="font-size: 0.85rem;">
+                  <code style="background: var(--bg-primary); padding: 0.2rem 0.4rem; border-radius: 3px;">Web: http://192.168.1.101:6080/vnc.html</code>
+                  <br>Acesso via navegador, sem instalação de cliente.
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--accent-red); border-radius: 6px; font-size: 0.85rem; color: var(--accent-red);">
+              ⚠️ <strong>Atenção de Segurança:</strong> VNC está configurado sem senha (-nopw). Para uso externo à rede local, configure uma senha VNC e utilize VPN ou túnel SSH.
             </div>
           </div>
         </div>

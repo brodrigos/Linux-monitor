@@ -7,6 +7,7 @@ const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 const fs = require('fs');
+const { initSSHWebSocket } = require('./ws-ssh');
 
 const app = express();
 const server = http.createServer(app);
@@ -1028,6 +1029,109 @@ app.post('/api/backup/schedule/:id/toggle', (req, res) => {
   }
 });
 
+
+// ==================== REMOTE ACCESS MODULE ====================
+
+// Initialize WebSocket SSH terminal
+initSSHWebSocket(server);
+
+// API: Remote Access Status
+app.get('/api/remote-access/status', async (req, res) => {
+  try {
+    const results = {};
+
+    // Check SSH
+    try {
+      await execPromise('which ssh 2>/dev/null || echo ""');
+      results.ssh = { installed: true };
+    } catch (e) {
+      results.ssh = { installed: false };
+    }
+
+    // Check XRDP service
+    try {
+      const { stdout } = await execPromise('systemctl is-active xrdp 2>/dev/null || echo inactive');
+      results.xrdp = { running: stdout.trim() === 'active' };
+    } catch (e) {
+      results.xrdp = { running: false };
+    }
+
+    // Check x11vnc process
+    try {
+      await execPromise('pgrep x11vnc >/dev/null 2>&1 || echo ""');
+      results.vnc = { running: true };
+    } catch (e) {
+      results.vnc = { running: false };
+    }
+
+    // Check websockify process
+    try {
+      await execPromise('pgrep websockify >/dev/null 2>&1 || echo ""');
+      results.novnc = { running: true };
+    } catch (e) {
+      results.novnc = { running: false };
+    }
+
+    res.json({ success: true, services: results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: XRDP Control (start/stop/restart)
+app.post('/api/remote-access/xrdp', async (req, res) => {
+  const { action } = req.body;
+  if (!action || !['start', 'stop', 'restart'].includes(action)) {
+    return res.status(400).json({ success: false, error: 'Ação inválida (start, stop, restart)' });
+  }
+  try {
+    await execPromise(`sudo systemctl ${action} xrdp`);
+    res.json({ success: true, message: `XRDP ${action} com sucesso.` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: VNC (x11vnc) Control
+app.post('/api/remote-access/vnc', async (req, res) => {
+  const { action } = req.body;
+  if (!action || !['start', 'stop', 'restart'].includes(action)) {
+    return res.status(400).json({ success: false, error: 'Ação inválida (start, stop, restart)' });
+  }
+  try {
+    if (action === 'stop' || action === 'restart') {
+      await execPromise('pkill -f x11vnc 2>/dev/null || true');
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    if (action === 'start' || action === 'restart') {
+      await execPromise('nohup x11vnc -forever -shared -noxdamage -nopw -display :0 -rfbport 5900 >/dev/null 2>&1 &');
+    }
+    res.json({ success: true, message: `x11vnc ${action} com sucesso.` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: noVNC (websockify) Control
+app.post('/api/remote-access/novnc', async (req, res) => {
+  const { action } = req.body;
+  if (!action || !['start', 'stop', 'restart'].includes(action)) {
+    return res.status(400).json({ success: false, error: 'Ação inválida (start, stop, restart)' });
+  }
+  try {
+    const novncDir = '/usr/share/novnc';
+    if (action === 'stop' || action === 'restart') {
+      await execPromise('pkill -f "websockify 6080" 2>/dev/null || true');
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    if (action === 'start' || action === 'restart') {
+      await execPromise(`nohup websockify --web ${novncDir} 6080 localhost:5900 >/dev/null 2>&1 &`);
+    }
+    res.json({ success: true, message: `noVNC/websockify ${action} com sucesso.` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Linux-monitor rodando na porta ${PORT}`);
